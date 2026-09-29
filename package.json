@@ -1,0 +1,40 @@
+{
+  "name": "find_a_nikah_backend",
+  "version": "1.0.0",
+  "description": "Find A Nikah - muslim matrimony backend",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "dev": "nodemon src/index.js",
+    "start": "node src/index.js",
+    "check": "node src/scripts/check-auth.js",
+    "check:auth": "node src/scripts/check-auth.js",
+    "sync-indexes": "node src/scripts/sync-indexes.js",
+    "seed": "node src/scripts/seed.js",
+    "seed:clear": "node src/scripts/seed.js --clear",
+    "seed:plans": "node src/scripts/seed-plans.js",
+    "expire-subscriptions": "node src/scripts/expire-subscriptions.js"
+  },
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "nodemon": "^3.1.10",
+    "prettier": "^3.5.3",
+    "socket.io-client": "^4.8.3"
+  },
+  "dependencies": {
+    "bcrypt": "^6.0.0",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.5",
+    "dotenv": "^16.5.0",
+    "express": "^5.1.0",
+    "express-rate-limit": "^8.1.0",
+    "ioredis": "^6.0.0",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^8.15.1",
+    "multer": "^2.0.1",
+    "sharp": "^0.35.4",
+    "socket.io": "^4.8.3",
+    "uuid": "^11.1.0"
+  }
+}
