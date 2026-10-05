@@ -18,6 +18,7 @@ export { ProfileVerification } from "./profileVerification.model.js";
 // Discovery and interaction
 export { ProfileView } from "./profileView.model.js";
 export { Like } from "./like.model.js";
+export { Pass } from "./pass.model.js";
 export { Match, orderPair } from "./match.model.js";
 export { Block } from "./block.model.js";
 export { Report } from "./report.model.js";

@@ -1,6 +1,13 @@
 import mongoose, { Schema } from "mongoose";
 import bcrypt from "bcrypt";
-import { ACCOUNT_STATUS, ACCOUNT_STATUSES, GENDERS, ROLES } from "../constants.js";
+import {
+  ACCOUNT_STATUS,
+  ACCOUNT_STATUSES,
+  ACCOUNT_TYPES,
+  GENDERS,
+  PROFILE_FOR,
+  ROLES,
+} from "../constants.js";
 
 /**
  * The account. Everything a person *is* lives on Profile; this holds only what
@@ -14,32 +21,48 @@ const userSchema = new Schema(
   {
     /**
      * The account holder's name. On the account, not on the profile.
-     *
-     * It briefly lived on Profile instead, which silently broke staff: a
-     * moderator has no matrimony profile, so their name was dropped by
-     * mongoose on the way in and every admin screen showed a blank. Keeping it
-     * here means everybody has exactly one name, in one place.
      */
     fullName: {
       type: String,
-      required: true,
       trim: true,
       maxlength: 255,
+      default: "New Member",
     },
     phone: {
       type: String,
-      required: true,
       unique: true,
+      sparse: true,
       trim: true,
+      default: undefined,
     },
     email: {
       type: String,
       lowercase: true,
       trim: true,
-      // sparse so the unique index ignores the accounts with no email at all
       unique: true,
       sparse: true,
       default: undefined,
+    },
+    // Account type: individual or family
+    accountType: {
+      type: String,
+      enum: { values: ACCOUNT_TYPES, message: "{VALUE} is not a valid account type" },
+      default: "individual",
+    },
+    // Who the profile is created for
+    profileFor: {
+      type: String,
+      enum: { values: PROFILE_FOR, message: "{VALUE} is not a valid relation" },
+      default: "self",
+    },
+    // Onboarding progress
+    onboardingStep: {
+      type: Number,
+      default: 1,
+    },
+    isOnboardingComplete: {
+      type: Boolean,
+      default: false,
     },
     // Named `password` on the document but never selected by default and never
     // serialised - see toJSON below. It holds a bcrypt hash, never a password.
@@ -48,12 +71,10 @@ const userSchema = new Schema(
       required: [true, "Password is required"],
       select: false,
     },
-    // Not optional: every search, match and photo visibility rule keys off it,
-    // and a row without one cannot be shown to anybody.
+    // Chosen at step 4 of onboarding
     gender: {
       type: String,
       enum: { values: GENDERS, message: "{VALUE} is not a valid gender" },
-      required: true,
     },
     role: {
       type: String,

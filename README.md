@@ -270,35 +270,35 @@ POST /api/v1/auth/login
 - `POST /forgot-password`: Request password reset OTP
 - `POST /reset-password`: Reset password using verified OTP
 
-### Profile Management (`/api/v1/profile`)
-- `GET /me`: Fetch authenticated user's complete profile
-- `PATCH /basic`: Update basic profile details (height, marital status, religion, city)
-- `PATCH /discoverable`: Toggle search visibility (`isDiscoverable`)
-- `POST /education`: Add academic qualification
-- `PATCH /education/:id`: Update academic entry
-- `DELETE /education/:id`: Remove academic entry
-- `POST /profession`: Add career details
-- `PATCH /profession/:id`: Update career details
-- `DELETE /profession/:id`: Remove career entry
-- `PATCH /family`: Update family background details
-- `GET /preferences`: Get partner preference criteria
-- `PATCH /preferences`: Update partner preference criteria
-- `POST /photos`: Upload new photo (Multer + Sharp)
-- `PATCH /photos/:id/primary`: Designate photo as primary avatar
-- `DELETE /photos/:id`: Delete uploaded photo
-- `POST /verify`: Upload identity verification document (NID/Passport)
+### Onboarding Flow (`/api/v1/onboarding`)
+- `POST /email/send-code`: Send email verification code (Step 1)
+- `POST /email/verify-code`: Verify email OTP code (Step 2)
+- `POST /account`: Register account with password & confirm password (Step 3)
+- `GET /status`: Fetch current onboarding progress, step number, and saved data
+- `PATCH /step`: Save step data (Steps 4 to 27) or skip optional steps (`{ step: Number, data: Object, isSkip: Boolean }`)
+- `POST /complete`: Finalize onboarding and submit profile for moderation review
 
 ### Discovery & Search (`/api/v1/profiles`)
 - `GET /search`: Filter profiles with cursor pagination (age, height, religion, city, education)
 - `GET /recommendations`: Ranked suggestions matching authenticated user's partner preferences
+- `GET /feed/liked-similar`: **Liked Similar** feed (profiles matching traits of users you liked)
+- `GET /feed/second-look`: **Second Look** feed (passed profiles, prioritizing candidates who liked you)
+- `GET /feed/live`: **Currently Available / Live** feed (users active in the last 30 minutes)
+- `GET /feed/visited-you`: **Visited You** feed (members who viewed your profile)
+- `GET /feed/just-joined`: **Just Joined** feed (new profiles published in the last 14 days)
+- `GET /feed/near-you`: **Active Near You** feed (nearby profiles via GeoJSON coordinates)
 - `GET /:id`: View public profile (records view event & applies visibility rules)
-- `GET /views/my-views`: List of members who viewed authenticated user's profile
+- `GET /me/viewers`: List of members who viewed authenticated user's profile
+- `GET /me/viewed`: List of profiles viewed by authenticated user
 
-### Interactions (`/api/v1`)
+### Interactions & Passes (`/api/v1`)
 - `POST /likes/:userId`: Send like (triggers match if mutual)
 - `DELETE /likes/:userId`: Withdraw like
 - `GET /likes/received`: List incoming likes (gated by subscription)
 - `GET /likes/sent`: List sent likes
+- `POST /passes/:userId`: Pass on a profile (swipe left)
+- `DELETE /passes/:userId`: Undo pass on a profile
+- `GET /passes`: Retrieve list of passed profiles
 - `GET /matches`: Retrieve active matches
 - `POST /matches/:matchId/unmatch`: Terminate an active match
 - `POST /blocks/:userId`: Block user (hides each other bidirectionally)

@@ -137,9 +137,8 @@ export const SUBSCRIPTION_STATUSES = [
 
 export const PAYMENT_STATUSES = ["pending", "succeeded", "failed", "refunded"];
 
-// A code issued to confirm a phone must never be accepted to reset a password,
-// so the purpose is part of the lookup.
-export const OTP_PURPOSES = ["phone_verification", "password_reset"];
+// A code issued to confirm an identity must never be accepted for another purpose
+export const OTP_PURPOSES = ["phone_verification", "email_verification", "password_reset"];
 
 // How long a one-time code is good for, and how many guesses it allows.
 export const OTP_TTL_MINUTES = 5;
@@ -153,3 +152,94 @@ export const HEIGHT_CM_MAX = 230;
 // Nobody under this may hold a profile on a marriage site.
 export const MIN_AGE = 18;
 export const MAX_AGE = 80;
+
+// ------------------------------------------------------------- onboarding
+export const ACCOUNT_TYPES = ["individual", "family"];
+export const PROFILE_FOR = [
+  "self",
+  "son",
+  "daughter",
+  "brother",
+  "sister",
+  "other_family_member",
+  "client",
+  "other",
+];
+
+export const ONBOARDING_INTENTS = [
+  "know_first",
+  "ready_soon",
+  "curious",
+  "other",
+];
+
+export const REFERRAL_SOURCES = [
+  "social_media",
+  "friend_or_family",
+  "influencer",
+  "ai_recommendation",
+  "success_couple",
+  "google_play_store",
+  "apple_app_store",
+  "advertisement",
+  "other",
+];
+
+export const KNOW_DURATIONS = [
+  "1-2_months",
+  "3-4_months",
+  "4-12_months",
+  "flexible",
+];
+
+export const MARRIAGE_TIMELINES = [
+  "1-2_months",
+  "3-4_months",
+  "1-2_years",
+  "flexible",
+];
+
+export const RELIGIOUS_PRACTICES = [
+  "strictly_practising",
+  "actively_practising",
+  "moderately_practising",
+  "not_practising",
+];
+
+export const HALAL_FOOD_HABITS = [
+  "always",
+  "mostly",
+  "sometimes",
+  "not_halal",
+];
+
+export const SMOKING_HABITS = [
+  "never",
+  "occasionally",
+  "regularly",
+];
+
+export const ALCOHOL_HABITS = [
+  "never",
+  "occasionally",
+  "regularly",
+];
+
+export const BORN_MUSLIM_STATUS = [
+  "born_muslim",
+  "revert",
+];
+
+export const CHILDREN_STATUS = [
+  "no",
+  "yes_living_together",
+  "yes_living_apart",
+];
+
+export const RELOCATE_STATUS = [
+  "yes",
+  "no",
+  "maybe",
+];
+
+export const LOCATION_RADIUS_OPTIONS = ["small", "large"];

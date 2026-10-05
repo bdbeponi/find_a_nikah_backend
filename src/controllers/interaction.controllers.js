@@ -4,6 +4,7 @@ import { ApiResponse } from "../utils/apiResponse.js";
 import { User } from "../models/user.model.js";
 import { Profile } from "../models/profile.model.js";
 import { Like } from "../models/like.model.js";
+import { Pass } from "../models/pass.model.js";
 import { Match } from "../models/match.model.js";
 import { Block } from "../models/block.model.js";
 import { Report } from "../models/report.model.js";
@@ -456,6 +457,61 @@ const getMatchConversation = asyncHandler(async (req, res) => {
   return res.status(200).json(new ApiResponse(200, conversation, "Conversation"));
 });
 
+/** POST /api/v1/passes/:userId - Pass on a member */
+const passMember = asyncHandler(async (req, res) => {
+  const { userId } = req.params;
+  const passerId = req.user._id;
+
+  if (String(userId) === String(passerId)) {
+    throw new ApiError(400, "You cannot pass on yourself");
+  }
+
+  await Pass.updateOne(
+    { passerId, passedUserId: userId },
+    { $set: { passerId, passedUserId: userId } },
+    { upsert: true }
+  );
+
+  return res.status(200).json(new ApiResponse(200, null, "Member passed"));
+});
+
+/** DELETE /api/v1/passes/:userId - Undo pass on a member */
+const unpassMember = asyncHandler(async (req, res) => {
+  const { userId } = req.params;
+  const passerId = req.user._id;
+
+  await Pass.deleteOne({ passerId, passedUserId: userId });
+
+  return res.status(200).json(new ApiResponse(200, null, "Pass removed"));
+});
+
+/** GET /api/v1/passes - List members you passed on */
+const getPassedMembers = asyncHandler(async (req, res) => {
+  const { page, limit, skip } = getPagination(req.query);
+
+  const filter = { passerId: req.user._id };
+  const [passes, totalCount] = await Promise.all([
+    Pass.find(filter)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .populate("passedUserId", "fullName isVerified lastActiveAt")
+      .lean(),
+    Pass.countDocuments(filter),
+  ]);
+
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      {
+        passes,
+        pagination: buildPaginationMeta({ page, limit, totalCount }),
+      },
+      "Passed members"
+    )
+  );
+});
+
 export {
   likeMember,
   unlikeMember,
@@ -469,5 +525,8 @@ export {
   getBlocks,
   createReport,
   getMyReports,
+  passMember,
+  unpassMember,
+  getPassedMembers,
   startOfToday,
 };

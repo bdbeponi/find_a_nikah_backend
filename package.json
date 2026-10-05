@@ -15,7 +15,7 @@
     "seed:plans": "node src/scripts/seed-plans.js",
     "expire-subscriptions": "node src/scripts/expire-subscriptions.js"
   },
-  "author": "",
+  "author": "SA",
   "license": "ISC",
   "devDependencies": {
     "nodemon": "^3.1.10",

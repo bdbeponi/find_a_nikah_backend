@@ -13,18 +13,15 @@ import {
   getBlocks,
   createReport,
   getMyReports,
+  passMember,
+  unpassMember,
+  getPassedMembers,
 } from "../controllers/interaction.controllers.js";
 
 /**
- * Four routers, not one mounted at the version root.
+ * Five routers, not one mounted at the version root.
  *
- * `router.use(verifyJWT)` guards everything that reaches that router - which,
- * for a router mounted at /api/v1, is every /api/v1 request, including the ones
- * meant for a different router mounted alongside it. That is how the public
- * pricing endpoint started answering 401: a guard three files away was running
- * first. A router per prefix keeps each `use` inside the paths it belongs to,
- * and keeps the property that matters - a route added below cannot forget its
- * guard.
+ * `router.use(verifyJWT)` guards everything that reaches that router.
  */
 export const likeRouter = Router();
 likeRouter.use(verifyJWT);
@@ -32,6 +29,11 @@ likeRouter.use(verifyJWT);
 likeRouter.route("/received").get(getLikesReceived);
 likeRouter.route("/sent").get(getLikesSent);
 likeRouter.route("/:userId").post(likeMember).delete(unlikeMember);
+
+export const passRouter = Router();
+passRouter.use(verifyJWT);
+passRouter.route("/").get(getPassedMembers);
+passRouter.route("/:userId").post(passMember).delete(unpassMember);
 
 export const matchRouter = Router();
 matchRouter.use(verifyJWT);
