@@ -64,14 +64,14 @@ const register = asyncHandler(async (req, res) => {
 const login = asyncHandler(async (req, res) => {
   const { phone, email, password } = req.body;
 
-  if ((!phone && !email) || typeof password !== "string" || !password) {
+  if ((!email) || typeof password !== "string" || !password) {
     throw new ApiError(400, "Phone (or email) and password are required");
   }
 
   const user = await User.findOne(
-    phone
-      ? { phone: requireString(phone, "Phone") }
-      : { email: requireString(email, "Email").toLowerCase() }
+    email
+      ? { email: requireString(email, "Email").toLowerCase() }
+      : { phone: requireString(phone, "Phone") }
   ).select("+password");
 
   // One message for both halves on purpose: saying which was wrong turns the

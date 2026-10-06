@@ -7,27 +7,21 @@ import { Profile } from "../models/profile.model.js";
 import { PartnerPreference } from "../models/partnerPreference.model.js";
 import { ProfilePhoto } from "../models/profilePhoto.model.js";
 import { ProfileVerification } from "../models/profileVerification.model.js";
-import {
-  cookieOptions,
-  issueTokens,
-} from "../services/auth.service.js";
-import {
-  deliverOtp,
-  issueOtp,
-  verifyOtp,
-} from "../services/otp.service.js";
+import { cookieOptions, issueTokens } from "../services/auth.service.js";
+import { deliverOtp, issueOtp, verifyOtp } from "../services/otp.service.js";
 import {
   ACCOUNT_STATUS,
   ACCOUNT_TYPES,
   GENDERS,
   MAX_AGE,
   MIN_AGE,
+  ONBOARDING_INTENTS,
   PROFILE_FOR,
   PROFILE_STATUS,
   RELIGIONS,
   ROLES,
 } from "../constants.js";
-import { checkDateOfBirth, computeCompleteness } from "./profile.controllers.js";
+import { computeCompleteness } from "./profile.controllers.js";
 
 const clientInfo = (req) => ({
   userAgent: req.headers["user-agent"]?.slice(0, 400),
@@ -42,6 +36,44 @@ const withTokens = (res, status, { accessToken, refreshToken }, data, message) =
     .json(new ApiResponse(status, { ...data, accessToken, refreshToken }, message));
 
 /**
+ * Flexible Date parser.
+ * Handles "YYYY-MM-DD", "DD-MM-YYYY", "03 Feb 1998", common typos ("fed" -> "feb"), etc.
+ */
+export const parseDateOfBirth = (val) => {
+  if (!val) return null;
+  if (val instanceof Date && !Number.isNaN(val.getTime())) return val;
+  if (typeof val === "string") {
+    let clean = val.trim();
+    // Common typo correction: "fed" -> "feb"
+    clean = clean.replace(/\bfed\b/i, "feb");
+
+    // Direct JS Date parse
+    let d = new Date(clean);
+    if (!Number.isNaN(d.getTime())) return d;
+
+    // DD-MM-YYYY or DD/MM/YYYY
+    const m = clean.match(/^(\d{1,2})[-/.\s]+(\d{1,2})[-/.\s]+(\d{4})$/);
+    if (m) {
+      d = new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1]));
+      if (!Number.isNaN(d.getTime())) return d;
+    }
+  }
+  return null;
+};
+
+/**
+ * Flexible language parser.
+ * Handles arrays, comma-separated strings, or single string.
+ */
+const parseLanguages = (val) => {
+  if (Array.isArray(val)) return val.map(String).map((s) => s.trim()).filter(Boolean);
+  if (typeof val === "string" && val.trim()) {
+    return val.split(",").map((s) => s.trim()).filter(Boolean);
+  }
+  return ["English"];
+};
+
+/**
  * STEP 1: POST /api/v1/onboarding/email/send-code
  * Send email verification OTP
  */
@@ -49,7 +81,6 @@ export const sendEmailOtp = asyncHandler(async (req, res) => {
   const { email } = req.body;
   const targetEmail = requireString(email, "Email").toLowerCase();
 
-  // If email is already in use by an active completed user, reject early
   const existing = await User.findOne({
     email: targetEmail,
     accountStatus: ACCOUNT_STATUS.ACTIVE,
@@ -64,11 +95,7 @@ export const sendEmailOtp = asyncHandler(async (req, res) => {
   const devCode = await deliverOtp(targetEmail, code, "email_verification");
 
   return res.status(200).json(
-    new ApiResponse(
-      200,
-      { devCode },
-      "Verification code sent to your email"
-    )
+    new ApiResponse(200, { devCode }, "Verification code sent to your email")
   );
 });
 
@@ -104,7 +131,6 @@ export const registerAccount = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Password and confirm password do not match");
   }
 
-  // Check if account already exists
   let user = await User.findOne({ email: targetEmail });
   if (user && user.isOnboardingComplete) {
     throw new ApiError(409, "An account with this email already exists. Please log in.");
@@ -121,7 +147,6 @@ export const registerAccount = asyncHandler(async (req, res) => {
       accountStatus: ACCOUNT_STATUS.ACTIVE,
     });
   } else {
-    // Resume onboarding for incomplete registration
     user.password = password;
     user.isEmailVerified = true;
     user.onboardingStep = Math.max(user.onboardingStep || 1, 4);
@@ -155,7 +180,7 @@ export const getOnboardingStatus = asyncHandler(async (req, res) => {
   const userId = req.user._id;
 
   const [user, profile, preference, photos, verifications] = await Promise.all([
-    User.findById(userId).select("fullName email phone gender accountType profileFor onboardingStep isOnboardingComplete isPhoneVerified isEmailVerified"),
+    User.findById(userId).select("fullName email phone gender onboardingStep isOnboardingComplete isPhoneVerified isEmailVerified"),
     Profile.findOne({ userId }).lean(),
     PartnerPreference.findOne({ userId }).lean(),
     ProfilePhoto.find({ userId }).select("url isPrimary isApproved visibility").lean(),
@@ -181,28 +206,33 @@ export const getOnboardingStatus = asyncHandler(async (req, res) => {
 
 /**
  * PATCH /api/v1/onboarding/step
- * Generic step progress saver (Steps 4 to 27)
+ * Simple, unified onboarding step progress saver (Steps 4 to 27)
  */
 export const saveOnboardingStep = asyncHandler(async (req, res) => {
   const userId = req.user._id;
-  const { step, data = {}, isSkip = false } = req.body;
 
-  const stepNumber = Number(step);
+  // Accept data whether passed nested in req.body.data OR flat in req.body
+  const payload =
+    req.body?.data && typeof req.body.data === "object"
+      ? { ...req.body, ...req.body.data }
+      : req.body || {};
+
+  const stepNumber = Number(payload.step);
   if (!Number.isInteger(stepNumber) || stepNumber < 4 || stepNumber > 27) {
     throw new ApiError(400, "Step must be an integer between 4 and 27");
   }
 
-  let profile = await Profile.findOne({ userId });
+  const nextStep = Math.min(stepNumber + 1, 27);
   let user = await User.findById(userId);
+  let profile = await Profile.findOne({ userId });
 
-  // If skipped, advance step if not already further
-  if (isSkip) {
-    const nextStep = Math.min(stepNumber + 1, 27);
-    if (user && user.onboardingStep <= stepNumber) {
+  // Handle skip action
+  if (payload.isSkip) {
+    if (user && (user.onboardingStep || 1) <= stepNumber) {
       user.onboardingStep = nextStep;
       await user.save({ validateBeforeSave: false });
     }
-    if (profile && profile.onboardingStep <= stepNumber) {
+    if (profile && (profile.onboardingStep || 1) <= stepNumber) {
       profile.onboardingStep = nextStep;
       await profile.save({ validateBeforeSave: false });
     }
@@ -211,49 +241,81 @@ export const saveOnboardingStep = asyncHandler(async (req, res) => {
     );
   }
 
-  // Handle specific step logic
+  // Common profile fields accumulator
+  const profileUpdates = { onboardingStep: nextStep };
+
+
+  // console.log("payload.profileFor", payload.profileFor)
+
   switch (stepNumber) {
     case 4: {
       // Step 4: Individual or family account & core demographics
-      const {
-        accountType = "individual",
-        profileFor = "self",
-        fullName,
-        birthDate,
-        dateOfBirth,
-        gender,
-        religion = "islam",
-        language,
-        languages = [],
-      } = data;
-
+      const accountType = payload.accountType || "individual";
       if (!ACCOUNT_TYPES.includes(accountType)) {
         throw new ApiError(400, `accountType must be one of: ${ACCOUNT_TYPES.join(", ")}`);
       }
-      if (!PROFILE_FOR.includes(profileFor)) {
-        throw new ApiError(400, `profileFor must be one of: ${PROFILE_FOR.join(", ")}`);
+
+      let profileFor = payload.profileFor;
+      if (accountType === "family") {
+        if (!profileFor || !PROFILE_FOR.includes(profileFor)) {
+          throw new ApiError(
+            400,
+            `profileFor is required for family accounts and must be one of: ${PROFILE_FOR.join(", ")}`
+          );
+        }
+      } else {
+        // Individual account does not use a family relationship
+        profileFor = undefined;
       }
-      if (!GENDERS.includes(gender)) {
-        throw new ApiError(400, `gender must be one of: ${GENDERS.join(", ")}`);
+
+      const gender = payload.gender;
+
+      if (!gender || !GENDERS.includes(gender)) {
+        throw new ApiError(400, `Gender must be one of: ${GENDERS.join(", ")}`);
       }
 
-      const dob = dateOfBirth || birthDate;
-      const dobError = checkDateOfBirth(dob);
-      if (dobError) throw new ApiError(400, dobError);
+      const religion = payload.religion;
+      if (!religion || !RELIGIONS.includes(religion)) {
+        throw new ApiError(400, `Religion must be one of: ${RELIGIONS.join(", ")}`);
+      }
 
-      const name = requireString(fullName, "Full name");
+      const fullName = requireString(payload.fullName, "Full name");
 
-      // Update User
-      user.fullName = name;
+      // Date of birth parsing & validation
+      const rawDob = payload.dateOfBirth;
+      const dobDate = parseDateOfBirth(rawDob);
+      if (!dobDate) {
+        throw new ApiError(
+          400,
+          "Date of birth is not a valid date. Example: 1998-05-15 or 15 Feb 1998"
+        );
+      }
+
+      // Age calculation
+      const now = new Date();
+      let age = now.getFullYear() - dobDate.getFullYear();
+      const monthDiff = now.getMonth() - dobDate.getMonth();
+      if (monthDiff < 0 || (monthDiff === 0 && now.getDate() < dobDate.getDate())) age--;
+
+      if (age < MIN_AGE) {
+        throw new ApiError(
+          400,
+          `You must be at least ${MIN_AGE} years old to register. (Year ${dobDate.getFullYear()} is under ${MIN_AGE})`
+        );
+      }
+      if (age > MAX_AGE) {
+        throw new ApiError(400, `Age must be under ${MAX_AGE} years old`);
+      }
+
+      const languages = parseLanguages(payload.languages);
+
+      // Save to User
+      user.fullName = fullName;
       user.gender = gender;
-      user.accountType = accountType;
-      user.profileFor = profileFor;
-      user.onboardingStep = Math.max(user.onboardingStep || 1, 5);
+      user.onboardingStep = Math.max(user.onboardingStep || 1, nextStep);
       await user.save({ validateBeforeSave: false });
 
-      const langList = language ? [language] : Array.isArray(languages) ? languages : [];
-
-      // Create or update Profile
+      // Save to Profile
       profile = await Profile.findOneAndUpdate(
         { userId },
         {
@@ -261,362 +323,173 @@ export const saveOnboardingStep = asyncHandler(async (req, res) => {
             accountType,
             profileFor,
             gender,
-            dateOfBirth: new Date(dob),
+            dateOfBirth: dobDate,
             religion,
-            motherTongue: langList[0] || "Bengali",
-            languages: langList,
-            onboardingStep: Math.max(profile?.onboardingStep || 1, 5),
+            languages,
+            motherTongue: languages[0] || "Bengali",
+            onboardingStep: Math.max(profile?.onboardingStep || 1, nextStep),
           },
         },
-        { upsert: true, new: true, setDefaultsOnInsert: true }
+        { upsert: true, new: true, runValidators: true, setDefaultsOnInsert: true }
       );
       break;
     }
 
-    case 5: {
-      // Step 5: What brings you to Find A Nikah (intent)
-      const { intent } = data;
-      if (intent) {
-        profile = await Profile.findOneAndUpdate(
-          { userId },
-          { $set: { intent, onboardingStep: Math.max(profile?.onboardingStep || 1, 6) } },
-          { new: true, upsert: true }
-        );
+    case 5:
+      const intent = payload.intent;
+      if (!intent || !ONBOARDING_INTENTS.includes(intent)) {
+        throw new ApiError(400, `Intent must be one of: ${ONBOARDING_INTENTS.join(", ")}`);
       }
-      break;
-    }
+      profileUpdates.intent = intent;
 
-    case 6: {
-      // Step 6: Referral source
-      const { referralSource } = data;
-      if (referralSource) {
-        profile = await Profile.findOneAndUpdate(
-          { userId },
-          { $set: { referralSource, onboardingStep: Math.max(profile?.onboardingStep || 1, 7) } },
-          { new: true, upsert: true }
-        );
-      }
       break;
-    }
 
-    case 7: {
-      // Step 7: Nationality
-      const { nationality } = data;
-      profile = await Profile.findOneAndUpdate(
-        { userId },
-        { $set: { nationality: nationality || "Bangladeshi", onboardingStep: Math.max(profile?.onboardingStep || 1, 8) } },
-        { new: true, upsert: true }
-      );
+    case 6:
+      if (payload.referralSource) profileUpdates.referralSource = payload.referralSource;
       break;
-    }
 
-    case 8: {
-      // Step 8: Grow up (where you grew up)
-      const { grewUpIn } = data;
-      profile = await Profile.findOneAndUpdate(
-        { userId },
-        { $set: { grewUpIn, onboardingStep: Math.max(profile?.onboardingStep || 1, 9) } },
-        { new: true, upsert: true }
-      );
+    case 7:
+      profileUpdates.nationality = payload.nationality || "Bangladeshi";
       break;
-    }
 
-    case 9: {
-      // Step 9: Ethnicity
-      const { ethnicity } = data;
-      profile = await Profile.findOneAndUpdate(
-        { userId },
-        { $set: { ethnicity, onboardingStep: Math.max(profile?.onboardingStep || 1, 10) } },
-        { new: true, upsert: true }
-      );
+    case 8:
+      if (payload.grewUpIn) profileUpdates.grewUpIn = payload.grewUpIn;
       break;
-    }
+
+    case 9:
+      if (payload.ethnicity) profileUpdates.ethnicity = payload.ethnicity;
+      break;
 
     case 10: {
-      // Step 10: Height
-      const { heightCm } = data;
-      const height = Number(heightCm);
-      if (Number.isFinite(height)) {
-        profile = await Profile.findOneAndUpdate(
-          { userId },
-          { $set: { heightCm: height, onboardingStep: Math.max(profile?.onboardingStep || 1, 11) } },
-          { new: true, upsert: true }
-        );
-      }
+      const h = Number(payload.heightCm);
+      if (Number.isFinite(h)) profileUpdates.heightCm = h;
       break;
     }
 
-    case 11: {
-      // Step 11: Education Level
-      const { educationLevel } = data;
-      profile = await Profile.findOneAndUpdate(
-        { userId },
-        { $set: { educationLevel, onboardingStep: Math.max(profile?.onboardingStep || 1, 12) } },
-        { new: true, upsert: true }
-      );
+    case 11:
+      if (payload.educationLevel) profileUpdates.educationLevel = payload.educationLevel;
       break;
-    }
 
     case 12: {
-      // Step 12: Profession
-      const { profession, professionTitle } = data;
-      const title = professionTitle || profession;
-      profile = await Profile.findOneAndUpdate(
-        { userId },
-        { $set: { professionTitle: title, onboardingStep: Math.max(profile?.onboardingStep || 1, 13) } },
-        { new: true, upsert: true }
-      );
+      const title = payload.professionTitle || payload.profession;
+      if (title) profileUpdates.professionTitle = title;
       break;
     }
 
-    case 13: {
-      // Step 13: Marital status
-      const { maritalStatus } = data;
-      if (maritalStatus) {
-        profile = await Profile.findOneAndUpdate(
-          { userId },
-          { $set: { maritalStatus, onboardingStep: Math.max(profile?.onboardingStep || 1, 14) } },
-          { new: true, upsert: true }
-        );
+    case 13:
+      if (payload.maritalStatus) profileUpdates.maritalStatus = payload.maritalStatus;
+      break;
+
+    case 14:
+      if (payload.getToknowDuration) {
+        profileUpdates["marriageIntentions.getToknowDuration"] = payload.getToknowDuration;
+      }
+      if (payload.marriageTimeline) {
+        profileUpdates["marriageIntentions.marriageTimeline"] = payload.marriageTimeline;
       }
       break;
-    }
 
-    case 14: {
-      // Step 14: Intentions for marriage
-      const { getToknowDuration, marriageTimeline } = data;
-      profile = await Profile.findOneAndUpdate(
-        { userId },
-        {
-          $set: {
-            "marriageIntentions.getToknowDuration": getToknowDuration,
-            "marriageIntentions.marriageTimeline": marriageTimeline,
-            onboardingStep: Math.max(profile?.onboardingStep || 1, 15),
-          },
-        },
-        { new: true, upsert: true }
-      );
+    case 15:
+      if (payload.sect) profileUpdates.sect = payload.sect;
+      if (payload.religion) profileUpdates.religion = payload.religion;
       break;
-    }
 
-    case 15: {
-      // Step 15: Faith / Sect
-      const { sect, religion } = data;
-      const updates = { onboardingStep: Math.max(profile?.onboardingStep || 1, 16) };
-      if (sect) updates.sect = sect;
-      if (religion) updates.religion = religion;
-      profile = await Profile.findOneAndUpdate({ userId }, { $set: updates }, { new: true, upsert: true });
+    case 16:
+      if (payload.religiousPractice) profileUpdates.religiousPractice = payload.religiousPractice;
+      if (payload.religiousness) profileUpdates.religiousness = payload.religiousness;
       break;
-    }
 
-    case 16: {
-      // Step 16: Religious practice
-      const { religiousPractice, religiousness } = data;
-      const updates = { onboardingStep: Math.max(profile?.onboardingStep || 1, 17) };
-      if (religiousPractice) updates.religiousPractice = religiousPractice;
-      if (religiousness) updates.religiousness = religiousness;
-      profile = await Profile.findOneAndUpdate({ userId }, { $set: updates }, { new: true, upsert: true });
+    case 17:
+      profileUpdates["lifestyle.halalFood"] = payload.halalFood || "always";
+      profileUpdates["lifestyle.smoking"] = payload.smoking || "never";
+      profileUpdates["lifestyle.alcohol"] = payload.alcohol || "never";
       break;
-    }
 
-    case 17: {
-      // Step 17: Lifestyle preferences
-      const { halalFood, smoking, alcohol } = data;
-      profile = await Profile.findOneAndUpdate(
-        { userId },
-        {
-          $set: {
-            "lifestyle.halalFood": halalFood || "always",
-            "lifestyle.smoking": smoking || "never",
-            "lifestyle.alcohol": alcohol || "never",
-            onboardingStep: Math.max(profile?.onboardingStep || 1, 18),
-          },
-        },
-        { new: true, upsert: true }
-      );
+    case 18:
+      profileUpdates["aboutYou.bornMuslim"] = payload.bornMuslim || "born_muslim";
+      profileUpdates["aboutYou.haveChildren"] = payload.haveChildren || "no";
+      profileUpdates["aboutYou.relocateAbroad"] = payload.relocateAbroad || "maybe";
       break;
-    }
 
-    case 18: {
-      // Step 18: About you (born muslim, children, relocate)
-      const { bornMuslim, haveChildren, relocateAbroad } = data;
-      profile = await Profile.findOneAndUpdate(
-        { userId },
-        {
-          $set: {
-            "aboutYou.bornMuslim": bornMuslim || "born_muslim",
-            "aboutYou.haveChildren": haveChildren || "no",
-            "aboutYou.relocateAbroad": relocateAbroad || "maybe",
-            onboardingStep: Math.max(profile?.onboardingStep || 1, 19),
-          },
-        },
-        { new: true, upsert: true }
-      );
+    case 19:
+      profileUpdates.personalityTraits = Array.isArray(payload.personalityTraits)
+        ? payload.personalityTraits
+        : [];
       break;
-    }
 
-    case 19: {
-      // Step 19: Personality description
-      const { personalityTraits } = data;
-      const traits = Array.isArray(personalityTraits) ? personalityTraits : [];
-      profile = await Profile.findOneAndUpdate(
-        { userId },
-        {
-          $set: {
-            personalityTraits: traits,
-            onboardingStep: Math.max(profile?.onboardingStep || 1, 20),
-          },
-        },
-        { new: true, upsert: true }
-      );
+    case 20:
+      profileUpdates.interests = {
+        cultural: Array.isArray(payload.cultural) ? payload.cultural : [],
+        foodDrinks: Array.isArray(payload.foodDrinks) ? payload.foodDrinks : [],
+        sports: Array.isArray(payload.sports) ? payload.sports : [],
+        fashion: Array.isArray(payload.fashion) ? payload.fashion : [],
+        activities: Array.isArray(payload.activities) ? payload.activities : [],
+      };
       break;
-    }
 
-    case 20: {
-      // Step 20: Interests (cultural, food/drinks, sports, fashion, activities)
-      const { cultural = [], foodDrinks = [], sports = [], fashion = [], activities = [] } = data;
-      profile = await Profile.findOneAndUpdate(
-        { userId },
-        {
-          $set: {
-            "interests.cultural": Array.isArray(cultural) ? cultural : [],
-            "interests.foodDrinks": Array.isArray(foodDrinks) ? foodDrinks : [],
-            "interests.sports": Array.isArray(sports) ? sports : [],
-            "interests.fashion": Array.isArray(fashion) ? fashion : [],
-            "interests.activities": Array.isArray(activities) ? activities : [],
-            onboardingStep: Math.max(profile?.onboardingStep || 1, 21),
-          },
-        },
-        { new: true, upsert: true }
-      );
+    case 21:
+      profileUpdates.aboutMe = payload.aboutMe || payload.bio || "";
       break;
-    }
 
-    case 21: {
-      // Step 21: Bio (aboutMe)
-      const { bio, aboutMe } = data;
-      const text = requireString(aboutMe || bio, "Bio");
-      profile = await Profile.findOneAndUpdate(
-        { userId },
-        {
-          $set: {
-            aboutMe: text,
-            onboardingStep: Math.max(profile?.onboardingStep || 1, 22),
-          },
-        },
-        { new: true, upsert: true }
-      );
+    case 22:
+    case 25:
+      // Acknowledgment steps for Photo & ID upload
       break;
-    }
-
-    case 22: {
-      // Step 22: Profile photo step acknowledgment
-      profile = await Profile.findOneAndUpdate(
-        { userId },
-        { $set: { onboardingStep: Math.max(profile?.onboardingStep || 1, 23) } },
-        { new: true, upsert: true }
-      );
-      break;
-    }
 
     case 23: {
-      // Step 23: Verify phone (send code)
-      const { phone } = data;
-      const targetPhone = requireString(phone, "Phone");
-      const code = await issueOtp(targetPhone, "phone_verification");
-      const devCode = await deliverOtp(targetPhone, code, "phone_verification");
-
-      user.phone = targetPhone;
+      // Step 23: Send phone OTP
+      const phone = requireString(payload.phone, "Phone");
+      const code = await issueOtp(phone, "phone_verification");
+      const devCode = await deliverOtp(phone, code, "phone_verification");
+      user.phone = phone;
       await user.save({ validateBeforeSave: false });
-
       return res.status(200).json(
-        new ApiResponse(200, { devCode, phone: targetPhone }, "SMS verification code sent")
+        new ApiResponse(200, { devCode, phone }, "SMS verification code sent")
       );
     }
 
     case 24: {
       // Step 24: Verify phone code
-      const { code } = data;
-      const targetCode = requireString(code, "Verification code");
+      const code = requireString(payload.code, "Verification code");
       if (!user.phone) throw new ApiError(400, "Phone number has not been set");
-
-      await verifyOtp(user.phone, "phone_verification", targetCode);
+      await verifyOtp(user.phone, "phone_verification", code);
       user.isPhoneVerified = true;
-      user.onboardingStep = Math.max(user.onboardingStep || 1, 25);
+      user.onboardingStep = Math.max(user.onboardingStep || 1, nextStep);
       await user.save({ validateBeforeSave: false });
-
-      profile = await Profile.findOneAndUpdate(
-        { userId },
-        { $set: { onboardingStep: Math.max(profile?.onboardingStep || 1, 25) } },
-        { new: true, upsert: true }
-      );
-      break;
-    }
-
-    case 25: {
-      // Step 25: Verify image / ID step acknowledgment
-      profile = await Profile.findOneAndUpdate(
-        { userId },
-        { $set: { onboardingStep: Math.max(profile?.onboardingStep || 1, 26) } },
-        { new: true, upsert: true }
-      );
       break;
     }
 
     case 26: {
-      // Step 26: Location selection (small or large radius)
-      const { city, country = "Bangladesh", latitude, longitude, locationRadius = "large" } = data;
-      const updates = {
-        city,
-        country,
-        locationRadius,
-        onboardingStep: Math.max(profile?.onboardingStep || 1, 27),
-      };
-
-      if (longitude !== undefined && latitude !== undefined) {
-        const lng = Number(longitude);
-        const lat = Number(latitude);
+      // Step 26: Location selection
+      profileUpdates.city = payload.city;
+      profileUpdates.country = payload.country || "Bangladesh";
+      profileUpdates.locationRadius = payload.locationRadius || "large";
+      if (payload.longitude !== undefined && payload.latitude !== undefined) {
+        const lng = Number(payload.longitude);
+        const lat = Number(payload.latitude);
         if (Number.isFinite(lng) && Number.isFinite(lat)) {
-          updates.location = { type: "Point", coordinates: [lng, lat] };
+          profileUpdates.location = { type: "Point", coordinates: [lng, lat] };
         }
       }
-
-      profile = await Profile.findOneAndUpdate({ userId }, { $set: updates }, { new: true, upsert: true });
       break;
     }
 
     case 27: {
-      // Step 27: Add partner preference filters
-      const {
-        ageRange,
-        heightRange,
-        preferredReligions,
-        preferredSects,
-        maritalStatuses,
-        preferredCities,
-        verifiedOnly = false,
-      } = data;
-
+      // Step 27: Partner preference
       await PartnerPreference.findOneAndUpdate(
         { userId },
         {
           $set: {
-            ageRange: ageRange || { min: MIN_AGE, max: MAX_AGE },
-            heightRange,
-            preferredReligions,
-            preferredSects,
-            maritalStatuses,
-            preferredCities,
-            verifiedOnly,
+            ageRange: payload.ageRange || { min: MIN_AGE, max: MAX_AGE },
+            heightRange: payload.heightRange,
+            preferredReligions: payload.preferredReligions,
+            preferredSects: payload.preferredSects,
+            maritalStatuses: payload.maritalStatuses,
+            preferredCities: payload.preferredCities,
+            verifiedOnly: Boolean(payload.verifiedOnly),
           },
         },
         { upsert: true, new: true }
-      );
-
-      profile = await Profile.findOneAndUpdate(
-        { userId },
-        { $set: { onboardingStep: 27 } },
-        { new: true, upsert: true }
       );
       break;
     }
@@ -625,9 +498,17 @@ export const saveOnboardingStep = asyncHandler(async (req, res) => {
       break;
   }
 
-  // Sync user step
-  const nextStep = Math.min(stepNumber + 1, 27);
-  if (user && user.onboardingStep <= stepNumber) {
+  // Update Profile document for steps 5-27
+  if (stepNumber !== 4) {
+    profile = await Profile.findOneAndUpdate(
+      { userId },
+      { $set: profileUpdates },
+      { new: true, upsert: true, setDefaultsOnInsert: true }
+    );
+  }
+
+  // Sync user step progression
+  if (user && (user.onboardingStep || 1) < nextStep) {
     user.onboardingStep = nextStep;
     await user.save({ validateBeforeSave: false });
   }
@@ -643,7 +524,7 @@ export const saveOnboardingStep = asyncHandler(async (req, res) => {
 
 /**
  * POST /api/v1/onboarding/complete
- * Finalize onboarding, compute completeness score, and prepare profile
+ * Finalize onboarding, compute completeness score, and prepare profile for moderation
  */
 export const completeOnboarding = asyncHandler(async (req, res) => {
   const userId = req.user._id;
@@ -667,7 +548,7 @@ export const completeOnboarding = asyncHandler(async (req, res) => {
 
   profile.completeness = score;
   profile.isOnboardingCompleted = true;
-  profile.profileStatus = PROFILE_STATUS.PENDING; // Sent to moderation queue
+  profile.profileStatus = PROFILE_STATUS.PENDING;
   await profile.save();
 
   user.isOnboardingComplete = true;

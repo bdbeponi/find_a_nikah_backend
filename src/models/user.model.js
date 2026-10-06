@@ -3,9 +3,7 @@ import bcrypt from "bcrypt";
 import {
   ACCOUNT_STATUS,
   ACCOUNT_STATUSES,
-  ACCOUNT_TYPES,
   GENDERS,
-  PROFILE_FOR,
   ROLES,
 } from "../constants.js";
 
@@ -42,18 +40,6 @@ const userSchema = new Schema(
       unique: true,
       sparse: true,
       default: undefined,
-    },
-    // Account type: individual or family
-    accountType: {
-      type: String,
-      enum: { values: ACCOUNT_TYPES, message: "{VALUE} is not a valid account type" },
-      default: "individual",
-    },
-    // Who the profile is created for
-    profileFor: {
-      type: String,
-      enum: { values: PROFILE_FOR, message: "{VALUE} is not a valid relation" },
-      default: "self",
     },
     // Onboarding progress
     onboardingStep: {

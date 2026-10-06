@@ -10,7 +10,7 @@ import {
   verifyEmailOtp,
 } from "../controllers/onboarding.controllers.js";
 
-const router = Router();
+const onboardingRouter = Router();
 
 const ipLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -33,19 +33,19 @@ const otpLimiter = rateLimit({
 });
 
 // Step 1: Send email OTP
-router.route("/email/send-code").post(ipLimiter, otpLimiter, sendEmailOtp);
+onboardingRouter.route("/email/send-code").post(ipLimiter, otpLimiter, sendEmailOtp);
 
 // Step 2: Verify email OTP
-router.route("/email/verify-code").post(ipLimiter, verifyEmailOtp);
+onboardingRouter.route("/email/verify-code").post(ipLimiter, verifyEmailOtp);
 
 // Step 3: Register account
-router.route("/account").post(ipLimiter, registerAccount);
+onboardingRouter.route("/account").post(ipLimiter, registerAccount);
 
 // Protected onboarding routes (Steps 4 to 27)
-router.use(verifyJWT);
+onboardingRouter.use(verifyJWT);
 
-router.route("/status").get(getOnboardingStatus);
-router.route("/step").patch(saveOnboardingStep);
-router.route("/complete").post(completeOnboarding);
+onboardingRouter.route("/status").get(getOnboardingStatus);
+onboardingRouter.route("/step").patch(saveOnboardingStep);
+onboardingRouter.route("/complete").post(completeOnboarding);
 
-export default router;
+export default onboardingRouter;

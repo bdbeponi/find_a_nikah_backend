@@ -11,11 +11,11 @@ import "./models/index.js";
 import mongoose from "mongoose";
 
 import authRouter from "./routes/auth.routes.js";
-import onboardingRouter from "./routes/onboarding.routes.js";
 import userRouter from "./routes/user.routes.js";
 import adminRouter from "./routes/admin.routes.js";
 import profileRouter from "./routes/profile.routes.js";
 import discoveryRouter from "./routes/discovery.routes.js";
+import onboardingRouter from "./routes/onboarding.routes.js";
 import {
   likeRouter,
   passRouter,
@@ -137,7 +137,7 @@ app.get("/health", (req, res) => {
 app.use("/api/v1", clearCacheOnWrite);
 
 app.use("/api/v1/auth", authRouter);
-app.use("/api/v1/onboarding", onboardingRouter);
+app.use("/api/v1/onboarding", onboardingRouter); // shakil
 app.use("/api/v1/users", userRouter);
 app.use("/api/v1/admin", adminRouter);
 
@@ -150,7 +150,7 @@ app.use("/api/v1/notifications", notificationRouter);
 // for a router mounted after it - which is how the public pricing endpoint
 // started answering 401.
 app.use("/api/v1/likes", likeRouter);
-app.use("/api/v1/passes", passRouter);
+app.use("/api/v1/passes", passRouter); // shakil
 app.use("/api/v1/matches", matchRouter);
 app.use("/api/v1/blocks", blockRouter);
 app.use("/api/v1/reports", reportRouter);

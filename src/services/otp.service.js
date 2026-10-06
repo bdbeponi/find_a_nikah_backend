@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import { OtpVerification } from "../models/otpVerification.model.js";
 import { ApiError } from "../utils/apiError.js";
 import { OTP_MAX_ATTEMPTS, OTP_TTL_MINUTES } from "../constants.js";
+import { sendOtpEmail } from "./email.service.js";
 
 // Same hash as the refresh tokens: deterministic, so the code can be looked up
 // rather than compared against every open row. bcrypt salts, which would make
@@ -97,5 +98,11 @@ export const verifyOtp = async (rawIdentifier, purpose, rawCode) => {
  */
 export const deliverOtp = async (identifier, code, purpose) => {
   console.log(`📨 OTP for ${identifier} (${purpose}): ${code}`);
+
+  // When identifier is an email address, dispatch via SMTP
+  if (String(identifier).includes("@")) {
+    await sendOtpEmail(identifier, code, purpose);
+  }
+
   return process.env.NODE_ENV === "production" ? null : code;
 };

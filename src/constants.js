@@ -156,14 +156,11 @@ export const MAX_AGE = 80;
 // ------------------------------------------------------------- onboarding
 export const ACCOUNT_TYPES = ["individual", "family"];
 export const PROFILE_FOR = [
-  "self",
   "son",
   "daughter",
   "brother",
   "sister",
-  "other_family_member",
-  "client",
-  "other",
+  "other_family_member"
 ];
 
 export const ONBOARDING_INTENTS = [

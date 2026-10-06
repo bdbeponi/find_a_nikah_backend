@@ -57,7 +57,7 @@ const profileSchema = new Schema(
     profileFor: {
       type: String,
       enum: { values: PROFILE_FOR, message: "{VALUE} is not a valid relation" },
-      default: "self",
+
     },
 
     // Step 5: Intent
@@ -165,6 +165,7 @@ const profileSchema = new Schema(
       },
       coordinates: {
         type: [Number], // [longitude, latitude]
+        default: undefined,
       },
     },
 
