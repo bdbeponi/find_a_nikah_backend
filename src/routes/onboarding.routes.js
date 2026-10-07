@@ -9,6 +9,7 @@ import {
   sendEmailOtp,
   verifyEmailOtp,
 } from "../controllers/onboarding.controllers.js";
+import { upload } from "../middlewares/multer.middlewares.js";
 
 const onboardingRouter = Router();
 
@@ -45,7 +46,12 @@ onboardingRouter.route("/account").post(ipLimiter, registerAccount);
 onboardingRouter.use(verifyJWT);
 
 onboardingRouter.route("/status").get(getOnboardingStatus);
-onboardingRouter.route("/step").patch(saveOnboardingStep);
+
+onboardingRouter.route("/step").patch(
+  upload.array("images", 20),
+  saveOnboardingStep
+);
+
 onboardingRouter.route("/complete").post(completeOnboarding);
 
 export default onboardingRouter;

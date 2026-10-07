@@ -9,7 +9,7 @@ import {
   PROFILE_STATUS,
   RELIGIONS,
   RELIGIOUSNESS,
-  SECTS,
+  FAITH,
 } from "../constants.js";
 
 /**
@@ -94,8 +94,8 @@ export const buildSearchFilter = (query = {}, { viewerGender, now } = {}) => {
   const religions = pickList(query.religion, RELIGIONS);
   if (religions) filter.religion = { $in: religions };
 
-  const sects = pickList(query.sect, SECTS);
-  if (sects) filter.sect = { $in: sects };
+  const faiths = pickList(query.faith || query.sect, FAITH);
+  if (faiths) filter.faith = { $in: faiths };
 
   const religiousness = pickList(query.religiousness, RELIGIOUSNESS);
   if (religiousness) filter.religiousness = { $in: religiousness };
@@ -135,7 +135,7 @@ export const preferenceToFilter = (preference, { now } = {}) => {
 
   const lists = [
     ["religion", preference.preferredReligions],
-    ["sect", preference.preferredSects],
+    ["faith", preference.preferredSects],
     ["religiousness", preference.preferredReligiousness],
     ["maritalStatus", preference.maritalStatuses],
     ["city", preference.preferredCities],

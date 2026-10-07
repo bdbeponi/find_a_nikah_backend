@@ -7,7 +7,7 @@ import {
   MIN_AGE,
   RELIGIONS,
   RELIGIOUSNESS,
-  SECTS,
+  FAITH,
 } from "../constants.js";
 
 /**
@@ -36,7 +36,7 @@ const partnerPreferenceSchema = new Schema(
     heightRange: range(HEIGHT_CM_MIN, HEIGHT_CM_MAX),
 
     preferredReligions: [{ type: String, enum: RELIGIONS }],
-    preferredSects: [{ type: String, enum: SECTS }],
+    preferredSects: [{ type: String, enum: FAITH }],
     preferredReligiousness: [{ type: String, enum: RELIGIOUSNESS }],
     maritalStatuses: [{ type: String, enum: MARITAL_STATUSES }],
 

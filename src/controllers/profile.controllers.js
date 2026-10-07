@@ -72,6 +72,7 @@ export const pickProfileFields = (body = {}) => {
     "heightCm",
     "maritalStatus",
     "religion",
+    "faith",
     "sect",
     "religiousness",
     "city",
@@ -84,6 +85,10 @@ export const pickProfileFields = (body = {}) => {
   const out = {};
   for (const field of allowed) {
     if (body[field] !== undefined) out[field] = body[field];
+  }
+  if (out.sect && !out.faith) {
+    out.faith = out.sect;
+    delete out.sect;
   }
 
   // GeoJSON wants [longitude, latitude], and the two arrive from the client as

@@ -21,7 +21,7 @@ import {
   RELIGIOUS_PRACTICES,
   RELIGIOUSNESS,
   RELOCATE_STATUS,
-  SECTS,
+  FAITH,
   SMOKING_HABITS,
 } from "../constants.js";
 
@@ -114,41 +114,43 @@ const profileSchema = new Schema(
     // Step 15, 16: Faith & Religious practice
     religion: {
       type: String,
-      enum: { values: RELIGIONS, message: "{VALUE} is not valid" },
-      default: "islam",
+      enum: { values: RELIGIONS, message: "{VALUE} is not valid" }
     },
-    sect: { type: String, enum: SECTS },
-    religiousness: { type: String, enum: RELIGIOUSNESS },
+    faith: { type: String, enum: FAITH },
+
     religiousPractice: { type: String, enum: RELIGIOUS_PRACTICES },
 
-    // Step 17: Lifestyle
+    // Step 18: Lifestyle
     lifestyle: {
-      halalFood: { type: String, enum: HALAL_FOOD_HABITS, default: "always" },
-      smoking: { type: String, enum: SMOKING_HABITS, default: "never" },
-      alcohol: { type: String, enum: ALCOHOL_HABITS, default: "never" },
+      halalFood: { type: Boolean, default: true },
+      smoking: { type: Boolean, default: false },
+      alcohol: { type: Boolean, default: false },
     },
 
-    // Step 18: About you
+    // Step 19: About you
     aboutYou: {
-      bornMuslim: { type: String, enum: BORN_MUSLIM_STATUS, default: "born_muslim" },
-      haveChildren: { type: String, enum: CHILDREN_STATUS, default: "no" },
-      relocateAbroad: { type: String, enum: RELOCATE_STATUS, default: "maybe" },
+      bornMuslim: { type: Boolean, default: true },
+      haveChildren: { type: Boolean, default: false },
+      relocateAbroad: { type: Boolean, default: false },
     },
 
-    // Step 19: Personality description
+    // Step 20: Personality description
     personalityTraits: [{ type: String, trim: true }],
 
-    // Step 20: Interests
+    // Step 21: Interests
     interests: {
       cultural: [{ type: String, trim: true }],
-      fashion: [{ type: String, trim: true }],
       foodDrinks: [{ type: String, trim: true }],
       sports: [{ type: String, trim: true }],
+      fashion: [{ type: String, trim: true }],
       activities: [{ type: String, trim: true }],
     },
 
-    // Step 21: Bio
+    // Step 22: Bio
     aboutMe: { type: String, trim: true, maxlength: 2000 },
+
+    //step 23: images
+    images: [{ type: String }],
 
     // Step 26: Location & Radius
     city: { type: String, trim: true, index: true },

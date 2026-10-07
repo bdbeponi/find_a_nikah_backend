@@ -116,7 +116,8 @@ const toCards = async (profiles) => {
       heightCm: profile.heightCm,
       maritalStatus: profile.maritalStatus,
       religion: profile.religion,
-      sect: profile.sect,
+      faith: profile.faith || profile.sect,
+      sect: profile.faith || profile.sect,
       city: profile.city,
       country: profile.country,
       completeness: profile.completeness,
@@ -426,13 +427,13 @@ const getLikedSimilar = asyncHandler(async (req, res) => {
   let similarFilter = {};
   if (likedUserIds.length > 0) {
     const likedProfiles = await Profile.find({ userId: { $in: likedUserIds } }).lean();
-    const sects = [...new Set(likedProfiles.map((p) => p.sect).filter(Boolean))];
+    const sects = [...new Set(likedProfiles.map((p) => p.faith || p.sect).filter(Boolean))];
     const religions = [...new Set(likedProfiles.map((p) => p.religion).filter(Boolean))];
     const cities = [...new Set(likedProfiles.map((p) => p.city).filter(Boolean))];
     const educations = [...new Set(likedProfiles.map((p) => p.educationLevel).filter(Boolean))];
 
     const orClauses = [];
-    if (sects.length) orClauses.push({ sect: { $in: sects } });
+    if (sects.length) orClauses.push({ faith: { $in: sects } });
     if (cities.length) orClauses.push({ city: { $in: cities } });
     if (educations.length) orClauses.push({ educationLevel: { $in: educations } });
     if (religions.length) orClauses.push({ religion: { $in: religions } });

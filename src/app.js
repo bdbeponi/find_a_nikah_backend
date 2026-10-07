@@ -58,7 +58,7 @@ app.use(securityHeaders);
 // index.js runs, so anything captured up here would see an empty process.env
 // and quietly fall back to the default.
 const allowedOrigins = () =>
-  (process.env.CORS_ORIGIN || "http://localhost:3002")
+  (process.env.CORS_ORIGIN || "http://localhost:3001")
     .split(",")
     .map((origin) => origin.trim())
     .filter(Boolean);
@@ -163,6 +163,11 @@ app.use("/api/v1/messages", messageRouter);
 app.use("/api/v1/plans", planRouter);
 app.use("/api/v1/payments", paymentRouter);
 app.use("/api/v1/subscriptions", subscriptionRouter);
+
+
+
+
+
 
 // 404 for unmatched API routes
 app.use("/api", (req, res) => {

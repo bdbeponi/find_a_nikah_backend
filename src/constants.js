@@ -64,7 +64,7 @@ export const RELIGIONS = [
 ];
 
 // Free-typed sects would make the preference filter useless, so the list is closed.
-export const SECTS = ["sunni", "shia", "other", "prefer_not_to_say"];
+export const FAITH = ["charity_work", "completed_hajj", "completed_umrah", "dawah", "dhikr", "fasting", "fiqh", "frequent_dua", "friday_prayer", "good_akhlaq", "hadith_learning", "islamic_lectures", "learning_arabic", "masjid_regularly", "nafl_prayer", "prays_a_few_times_a_day", "prays_on_time", "prays_a_few_times_a_day", "sadaqah", "reciting_quran", "seerah_studies", "sunnah_prayers", "tahajudd", "taraweeh", "quran_reading", "regular_dua", "seeking_knowledge", "sunnah_practice"];
 
 export const RELIGIOUSNESS = [
   "practising",
@@ -203,8 +203,8 @@ export const MARRIAGE_TIMELINES = [
 export const RELIGIOUS_PRACTICES = [
   "strictly_practising",
   "actively_practising",
-  "moderately_practising",
-  "not_practising",
+  "occasionally_practising",
+  "not_practising_at_all",
 ];
 
 export const HALAL_FOOD_HABITS = [

@@ -12,6 +12,7 @@ import { deliverOtp, issueOtp, verifyOtp } from "../services/otp.service.js";
 import {
   ACCOUNT_STATUS,
   ACCOUNT_TYPES,
+  FAITH,
   GENDERS,
   HEIGHT_CM_MAX,
   HEIGHT_CM_MIN,
@@ -24,6 +25,7 @@ import {
   PROFILE_STATUS,
   REFERRAL_SOURCES,
   RELIGIONS,
+  RELIGIOUS_PRACTICES,
   ROLES,
 } from "../constants.js";
 import { computeCompleteness } from "./profile.controllers.js";
@@ -318,6 +320,17 @@ export const saveOnboardingStep = asyncHandler(async (req, res) => {
         throw new ApiError(400, `Religion must be one of: ${RELIGIONS.join(", ")}`);
       }
 
+      // If religion is Islam, validate faith if provided
+      let faith = payload.faith || payload.sect;
+      if (religion === "islam") {
+        if (faith && !FAITH.includes(faith)) {
+          throw new ApiError(400, `Faith must be one of: ${FAITH.join(", ")}`);
+        }
+      } else {
+        // Islamic faith practices are not applicable for other religions
+        faith = undefined;
+      }
+
       const fullName = requireString(payload.fullName, "Full name");
 
       // Date of birth parsing & validation
@@ -354,20 +367,27 @@ export const saveOnboardingStep = asyncHandler(async (req, res) => {
       user.onboardingStep = Math.max(user.onboardingStep || 1, nextStep);
       await user.save({ validateBeforeSave: false });
 
+      // Build Profile update
+      const updateSet = {
+        accountType,
+        profileFor,
+        gender,
+        dateOfBirth: dobDate,
+        religion,
+        languages,
+        motherTongue: languages[0] || "Bengali",
+        onboardingStep: Math.max(profile?.onboardingStep || 1, nextStep),
+      };
+      if (faith) {
+        updateSet.faith = faith;
+      }
+
       // Save to Profile
       profile = await Profile.findOneAndUpdate(
         { userId },
         {
-          $set: {
-            accountType,
-            profileFor,
-            gender,
-            dateOfBirth: dobDate,
-            religion,
-            languages,
-            motherTongue: languages[0] || "Bengali",
-            onboardingStep: Math.max(profile?.onboardingStep || 1, nextStep),
-          },
+          $set: updateSet,
+          ...(religion !== "islam" ? { $unset: { faith: "" } } : {}),
         },
         { upsert: true, new: true, runValidators: true, setDefaultsOnInsert: true }
       );
@@ -450,26 +470,64 @@ export const saveOnboardingStep = asyncHandler(async (req, res) => {
       }
       break;
 
-    case 15:
-      if (payload.sect) profileUpdates.sect = payload.sect;
-      if (payload.religion) profileUpdates.religion = payload.religion;
+    case 15: {
+      const faith = payload.faith;
+      if (faith) {
+        if (!FAITH.includes(faith)) {
+          throw new ApiError(400, `Faith must be one of: ${FAITH.join(", ")}`);
+        }
+        profileUpdates.faith = faith;
+      }
       break;
+    }
 
     case 16:
-      if (payload.religiousPractice) profileUpdates.religiousPractice = payload.religiousPractice;
-      if (payload.religiousness) profileUpdates.religiousness = payload.religiousness;
+
+      const religiousPractices = payload.religiousPractice;
+
+      if (!RELIGIOUS_PRACTICES.includes(religiousPractices)) {
+        throw new ApiError(400, `Religious practice must be one of: ${RELIGIOUS_PRACTICES.join(", ")}`);
+      }
+      profileUpdates.religiousPractice = religiousPractices;
       break;
 
-    case 17:
-      profileUpdates["lifestyle.halalFood"] = payload.halalFood || "always";
-      profileUpdates["lifestyle.smoking"] = payload.smoking || "never";
-      profileUpdates["lifestyle.alcohol"] = payload.alcohol || "never";
+    case 17: {
+      const raw = payload || {};
+      const clean = {}
+      const hasValue = (
+        typeof raw.halalFood === "boolean" ||
+        typeof raw.smoking === "boolean" ||
+        typeof raw.alcohol === "boolean"
+      );
+      if (typeof raw.halalFood === "boolean") clean.halalFood = raw.halalFood;
+      if (typeof raw.smoking === "boolean") clean.smoking = raw.smoking;
+      if (typeof raw.alcohol === "boolean") clean.alcohol = raw.alcohol;
+      if (!hasValue) {
+        // If nothing was provided, don't update the whole embedded document
+        // to `{}`. Just skip the update.
+        break;
+      }
+      profileUpdates.lifestyle = clean;
       break;
+    }
 
     case 18:
-      profileUpdates["aboutYou.bornMuslim"] = payload.bornMuslim || "born_muslim";
-      profileUpdates["aboutYou.haveChildren"] = payload.haveChildren || "no";
-      profileUpdates["aboutYou.relocateAbroad"] = payload.relocateAbroad || "maybe";
+      const raw = payload || {};
+      const clean = {}
+      const hasValue = (
+        typeof raw.bornMuslim === "boolean" ||
+        typeof raw.haveChildren === "boolean" ||
+        typeof raw.relocateAbroad === "boolean"
+      );
+      if (typeof raw.bornMuslim === "boolean") clean.bornMuslim = raw.bornMuslim;
+      if (typeof raw.haveChildren === "boolean") clean.haveChildren = raw.haveChildren;
+      if (typeof raw.relocateAbroad === "boolean") clean.relocateAbroad = raw.relocateAbroad;
+      if (!hasValue) {
+        // If nothing was provided, don't update the whole embedded document
+        // to `{}`. Just skip the update.
+        break;
+      }
+      profileUpdates.aboutYou = clean;
       break;
 
     case 19:
@@ -489,13 +547,27 @@ export const saveOnboardingStep = asyncHandler(async (req, res) => {
       break;
 
     case 21:
-      profileUpdates.aboutMe = payload.aboutMe || payload.bio || "";
+      profileUpdates.aboutMe = payload.aboutMe;
       break;
 
-    case 22:
-    case 25:
-      // Acknowledgment steps for Photo & ID upload
+    case 22: {
+      const uploadedFiles =
+        Array.isArray(req.files) && req.files.length > 0
+          ? req.files
+          : req.file
+            ? [req.file]
+            : [];
+
+      if (uploadedFiles.length > 0) {
+        const filePaths = uploadedFiles.map((file) => `/public/upload/${file.filename}`);
+        profileUpdates.images = filePaths;
+      } else if (payload.images) {
+        profileUpdates.images = Array.isArray(payload.images)
+          ? payload.images
+          : [payload.images];
+      }
       break;
+    }
 
     case 23: {
       // Step 23: Send phone OTP
