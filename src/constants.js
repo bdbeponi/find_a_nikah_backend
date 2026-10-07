@@ -146,8 +146,8 @@ export const OTP_MAX_ATTEMPTS = 5;
 
 // Height is stored in centimetres, always. Feet-and-inches is a display
 // concern; storing "5'6\"" makes a range query impossible.
-export const HEIGHT_CM_MIN = 120;
-export const HEIGHT_CM_MAX = 230;
+export const HEIGHT_CM_MIN = 110;
+export const HEIGHT_CM_MAX = 330;
 
 // Nobody under this may hold a profile on a marriage site.
 export const MIN_AGE = 18;

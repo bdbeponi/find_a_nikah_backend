@@ -45,6 +45,10 @@ const __dirname = dirname(__filename);
 
 const app = express();
 
+// Trust reverse proxy hops (e.g. ngrok, load balancers, Cloudflare)
+// Required for express-rate-limit to read X-Forwarded-For safely
+app.set("trust proxy", 1);
+
 // Nothing gains from telling the world which framework this is
 app.disable("x-powered-by");
 app.use(securityHeaders);

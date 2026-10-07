@@ -13,11 +13,14 @@ import {
   ACCOUNT_STATUS,
   ACCOUNT_TYPES,
   GENDERS,
+  HEIGHT_CM_MAX,
+  HEIGHT_CM_MIN,
   MAX_AGE,
   MIN_AGE,
   ONBOARDING_INTENTS,
   PROFILE_FOR,
   PROFILE_STATUS,
+  REFERRAL_SOURCES,
   RELIGIONS,
   ROLES,
 } from "../constants.js";
@@ -71,6 +74,40 @@ const parseLanguages = (val) => {
     return val.split(",").map((s) => s.trim()).filter(Boolean);
   }
   return ["English"];
+};
+
+/**
+ * Flexible Height parser.
+ * Handles pure numbers (145), cm strings ("145cm", "145cm  4'9\"", "124cm  4.1"),
+ * and feet/inches strings ("5'9\"", "5.9").
+ */
+export const parseHeightCm = (val) => {
+  if (val === undefined || val === null || val === "") return null;
+  if (typeof val === "number" && Number.isFinite(val)) return Math.round(val);
+  if (typeof val === "string") {
+    const str = val.trim();
+    // 1. If it contains "cm" (e.g. "145cm  4'9\"", "124cm  4.1", "150 cm")
+    const cmMatch = str.match(/(\d{2,3})\s*cm/i);
+    if (cmMatch) return parseInt(cmMatch[1], 10);
+
+    // 2. Pure or leading cm number >= 100
+    const leadingNumberMatch = str.match(/^(\d{2,3})/);
+    if (leadingNumberMatch && parseInt(leadingNumberMatch[1], 10) >= 100) {
+      return parseInt(leadingNumberMatch[1], 10);
+    }
+
+    // 3. Feet and inches (e.g. "5'9\"", "5'9", "5 ft 9 in")
+    const ftInMatch = str.match(/^(\d)['`’ft.\s]+(\d{1,2})?["in\s]*$/i);
+    if (ftInMatch) {
+      const feet = parseInt(ftInMatch[1], 10);
+      const inches = ftInMatch[2] ? parseInt(ftInMatch[2], 10) : 0;
+      return Math.round((feet * 12 + inches) * 2.54);
+    }
+
+    const anyNum = parseInt(str, 10);
+    if (Number.isFinite(anyNum)) return anyNum;
+  }
+  return null;
 };
 
 /**
@@ -345,11 +382,15 @@ export const saveOnboardingStep = asyncHandler(async (req, res) => {
       break;
 
     case 6:
-      if (payload.referralSource) profileUpdates.referralSource = payload.referralSource;
+      const referralSource = payload.referralSource;
+      if (!referralSource || !REFERRAL_SOURCES.includes(referralSource)) {
+        throw new ApiError(400, `Referral source must be one of: ${REFERRAL_SOURCES.join(", ")}`);
+      }
+      profileUpdates.referralSource = referralSource;
       break;
 
     case 7:
-      profileUpdates.nationality = payload.nationality || "Bangladeshi";
+      profileUpdates.nationality = payload.nationality;
       break;
 
     case 8:
@@ -361,8 +402,17 @@ export const saveOnboardingStep = asyncHandler(async (req, res) => {
       break;
 
     case 10: {
-      const h = Number(payload.heightCm);
-      if (Number.isFinite(h)) profileUpdates.heightCm = h;
+      const h = parseHeightCm(payload.heightCm);
+      if (h === null) {
+        throw new ApiError(400, "Height is required (e.g. 145cm or 160)");
+      }
+      if (h < HEIGHT_CM_MIN || h > HEIGHT_CM_MAX) {
+        throw new ApiError(
+          400,
+          `Height must be between ${HEIGHT_CM_MIN} cm and ${HEIGHT_CM_MAX} cm (received ${h} cm)`
+        );
+      }
+      profileUpdates.heightCm = h;
       break;
     }
 
