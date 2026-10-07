@@ -15,6 +15,8 @@ import {
   GENDERS,
   HEIGHT_CM_MAX,
   HEIGHT_CM_MIN,
+  KNOW_DURATIONS,
+  MARRIAGE_TIMELINES,
   MAX_AGE,
   MIN_AGE,
   ONBOARDING_INTENTS,
@@ -421,7 +423,7 @@ export const saveOnboardingStep = asyncHandler(async (req, res) => {
       break;
 
     case 12: {
-      const title = payload.professionTitle || payload.profession;
+      const title = payload.professionTitle;
       if (title) profileUpdates.professionTitle = title;
       break;
     }
@@ -431,6 +433,15 @@ export const saveOnboardingStep = asyncHandler(async (req, res) => {
       break;
 
     case 14:
+      const getToknowDuration = payload.getToknowDuration;
+      const marriageTimeline = payload.marriageTimeline;
+      if (getToknowDuration && !KNOW_DURATIONS.includes(getToknowDuration)) {
+        throw new ApiError(400, `Get to know duration must be one of: ${KNOW_DURATIONS.join(", ")}`);
+      }
+      if (marriageTimeline && !MARRIAGE_TIMELINES.includes(marriageTimeline)) {
+        throw new ApiError(400, `Marriage timeline must be one of: ${MARRIAGE_TIMELINES.join(", ")}`);
+      }
+
       if (payload.getToknowDuration) {
         profileUpdates["marriageIntentions.getToknowDuration"] = payload.getToknowDuration;
       }

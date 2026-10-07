@@ -83,7 +83,7 @@ const profileSchema = new Schema(
     dateOfBirth: { type: Date, required: true },
 
     // Step 7, 8, 9: Demographics
-    nationality: { type: String, trim: true, default: "Bangladeshi" },
+    nationality: { type: String, trim: true },
     grewUpIn: { type: String, trim: true },
     ethnicity: { type: String, trim: true },
     motherTongue: { type: String, trim: true },

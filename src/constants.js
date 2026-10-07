@@ -186,14 +186,18 @@ export const KNOW_DURATIONS = [
   "1-2_months",
   "3-4_months",
   "4-12_months",
-  "flexible",
+  "1-2_years",
+  "agree_together",
 ];
 
 export const MARRIAGE_TIMELINES = [
   "1-2_months",
   "3-4_months",
+  "4-12_months",
   "1-2_years",
-  "flexible",
+  "3-4_years",
+  "4+_years",
+  "agree_together",
 ];
 
 export const RELIGIOUS_PRACTICES = [
