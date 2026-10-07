@@ -568,7 +568,7 @@ export const saveOnboardingStep = asyncHandler(async (req, res) => {
       }
       break;
     }
-
+    //befor step all ok--
     case 23: {
       // Step 23: Send phone OTP
       const phone = requireString(payload.phone, "Phone");
