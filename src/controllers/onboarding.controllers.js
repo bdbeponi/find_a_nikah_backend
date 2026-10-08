@@ -307,13 +307,13 @@ export const saveOnboardingStep = asyncHandler(async (req, res) => {
   switch (stepNumber) {
     case 4: {
       // Step 4: Individual or family account & core demographics
-      const accountType = payload.accountType || "individual";
+      const accountType = payload.accountType;
       if (!ACCOUNT_TYPES.includes(accountType)) {
         throw new ApiError(400, `accountType must be one of: ${ACCOUNT_TYPES.join(", ")}`);
       }
 
       let profileFor = payload.profileFor;
-      if (accountType === "family") {
+      if (accountType) {
         if (!profileFor || !PROFILE_FOR.includes(profileFor)) {
           throw new ApiError(
             400,
@@ -337,15 +337,20 @@ export const saveOnboardingStep = asyncHandler(async (req, res) => {
       }
 
       // If religion is Islam, validate faith if provided
-      let faith = payload.faith || payload.sect;
-      if (religion === "islam") {
-        if (faith && !FAITH.includes(faith)) {
-          throw new ApiError(400, `Faith must be one of: ${FAITH.join(", ")}`);
+      const faith = payload.faith;
+
+      if (faith) {
+        if (!Array.isArray(faith)) {
+          throw new ApiError(400, "Faith must be an array.");
         }
-      } else {
-        // Islamic faith practices are not applicable for other religions
-        faith = undefined;
+
+        const isValid = faith.every((item) => FAITH.includes(item));
+
+        if (!isValid) {
+          throw new ApiError(400, `Faith items must be chosen from: ${FAITH.join(", ")}`);
+        }
       }
+
 
       const fullName = requireString(payload.fullName, "Full name");
 
@@ -407,39 +412,36 @@ export const saveOnboardingStep = asyncHandler(async (req, res) => {
         },
         { upsert: true, new: true, runValidators: true, setDefaultsOnInsert: true }
       );
-      break;
-    }
 
-    case 5:
+      // intent
       const intent = payload.intent;
       if (!intent || !ONBOARDING_INTENTS.includes(intent)) {
         throw new ApiError(400, `Intent must be one of: ${ONBOARDING_INTENTS.join(", ")}`);
       }
       profileUpdates.intent = intent;
 
-      break;
 
-    case 6:
+      // referralSource--
       const referralSource = payload.referralSource;
       if (!referralSource || !REFERRAL_SOURCES.includes(referralSource)) {
         throw new ApiError(400, `Referral source must be one of: ${REFERRAL_SOURCES.join(", ")}`);
       }
       profileUpdates.referralSource = referralSource;
-      break;
 
-    case 7:
+
+      // nationality
       profileUpdates.nationality = payload.nationality;
-      break;
 
-    case 8:
+      // grewupin
       if (payload.grewUpIn) profileUpdates.grewUpIn = payload.grewUpIn;
-      break;
 
-    case 9:
+
+
+      // ethnecity-
       if (payload.ethnicity) profileUpdates.ethnicity = payload.ethnicity;
-      break;
 
-    case 10: {
+
+      // heighthCm
       const h = parseHeightCm(payload.heightCm);
       if (h === null) {
         throw new ApiError(400, "Height is required (e.g. 145cm or 160)");
@@ -451,24 +453,29 @@ export const saveOnboardingStep = asyncHandler(async (req, res) => {
         );
       }
       profileUpdates.heightCm = h;
+
+
+
+
       break;
     }
 
-    case 11:
+
+
+
+    case 5:
+
+      // educationLevel
       if (payload.educationLevel) profileUpdates.educationLevel = payload.educationLevel;
-      break;
 
-    case 12: {
-      const title = payload.professionTitle;
-      if (title) profileUpdates.professionTitle = title;
-      break;
-    }
+      // professionTitle
+      if (payload.professionTitle) profileUpdates.professionTitle = payload.professionTitle;
 
-    case 13:
+      // maritalStatus
       if (payload.maritalStatus) profileUpdates.maritalStatus = payload.maritalStatus;
-      break;
 
-    case 14:
+
+      // getTOknowDuration
       const getToknowDuration = payload.getToknowDuration;
       const marriageTimeline = payload.marriageTimeline;
       if (getToknowDuration && !KNOW_DURATIONS.includes(getToknowDuration)) {
@@ -484,75 +491,73 @@ export const saveOnboardingStep = asyncHandler(async (req, res) => {
       if (payload.marriageTimeline) {
         profileUpdates["marriageIntentions.marriageTimeline"] = payload.marriageTimeline;
       }
-      break;
 
-    case 15: {
+
+      // faith--
       const faith = payload.faith;
+
       if (faith) {
-        if (!FAITH.includes(faith)) {
-          throw new ApiError(400, `Faith must be one of: ${FAITH.join(", ")}`);
+        if (!Array.isArray(faith)) {
+          throw new ApiError(400, "Faith must be an array.");
         }
-        profileUpdates.faith = faith;
+
+        const isValid = faith.every((item) => FAITH.includes(item));
+        if (!isValid) {
+          throw new ApiError(400, `Faith items must be chosen from: ${FAITH.join(", ")}`);
+        }
       }
-      break;
-    }
+      profileUpdates.faith = faith;
 
-    case 16:
 
-      const religiousPractices = payload.religiousPractice;
 
-      if (!RELIGIOUS_PRACTICES.includes(religiousPractices)) {
-        throw new ApiError(400, `Religious practice must be one of: ${RELIGIOUS_PRACTICES.join(", ")}`);
+      // religious Practices--
+      const religiousPractices = payload.religiousPractices;
+      if (religiousPractices) {
+        if (!Array.isArray(religiousPractices)) {
+          throw new ApiError(400, "Religious Practices must be an array.");
+        }
+        const isValid = religiousPractices.every((item) => RELIGIOUS_PRACTICES.includes(item));
+        if (!isValid) {
+          throw new ApiError(400, `Religious Practices must be chosen from: ${RELIGIOUS_PRACTICES.join(", ")}`);
+        }
       }
-      profileUpdates.religiousPractice = religiousPractices;
+      profileUpdates.religiousPractices = religiousPractices;
+
+
       break;
 
-    case 17: {
+    case 6: {
       const raw = payload || {};
-      const clean = {}
-      const hasValue = (
-        typeof raw.halalFood === "boolean" ||
-        typeof raw.smoking === "boolean" ||
-        typeof raw.alcohol === "boolean"
-      );
-      if (typeof raw.halalFood === "boolean") clean.halalFood = raw.halalFood;
-      if (typeof raw.smoking === "boolean") clean.smoking = raw.smoking;
-      if (typeof raw.alcohol === "boolean") clean.alcohol = raw.alcohol;
-      if (!hasValue) {
-        // If nothing was provided, don't update the whole embedded document
-        // to `{}`. Just skip the update.
-        break;
-      }
-      profileUpdates.lifestyle = clean;
-      break;
-    }
 
-    case 18:
-      const raw = payload || {};
-      const clean = {}
-      const hasValue = (
-        typeof raw.bornMuslim === "boolean" ||
-        typeof raw.haveChildren === "boolean" ||
-        typeof raw.relocateAbroad === "boolean"
-      );
-      if (typeof raw.bornMuslim === "boolean") clean.bornMuslim = raw.bornMuslim;
-      if (typeof raw.haveChildren === "boolean") clean.haveChildren = raw.haveChildren;
-      if (typeof raw.relocateAbroad === "boolean") clean.relocateAbroad = raw.relocateAbroad;
-      if (!hasValue) {
-        // If nothing was provided, don't update the whole embedded document
-        // to `{}`. Just skip the update.
-        break;
-      }
-      profileUpdates.aboutYou = clean;
-      break;
+      // Extract lifestyle fields
+      const lifestyle = {};
+      if (typeof raw.halalFood === "boolean") lifestyle.halalFood = raw.halalFood;
+      if (typeof raw.smoking === "boolean") lifestyle.smoking = raw.smoking;
+      if (typeof raw.alcohol === "boolean") lifestyle.alcohol = raw.alcohol;
 
-    case 19:
+      if (Object.keys(lifestyle).length > 0) {
+        profileUpdates.lifestyle = lifestyle;
+      }
+
+      // Extract aboutYou fields
+      const aboutYou = {};
+      if (typeof raw.bornMuslim === "boolean") aboutYou.bornMuslim = raw.bornMuslim;
+      if (typeof raw.haveChildren === "boolean") aboutYou.haveChildren = raw.haveChildren;
+      if (typeof raw.relocateAbroad === "boolean") aboutYou.relocateAbroad = raw.relocateAbroad;
+
+      if (Object.keys(aboutYou).length > 0) {
+        profileUpdates.aboutYou = aboutYou;
+      }
+
+
+      // personalityTraits
       profileUpdates.personalityTraits = Array.isArray(payload.personalityTraits)
         ? payload.personalityTraits
         : [];
-      break;
 
-    case 20:
+
+
+      // interests
       profileUpdates.interests = {
         cultural: Array.isArray(payload.cultural) ? payload.cultural : [],
         foodDrinks: Array.isArray(payload.foodDrinks) ? payload.foodDrinks : [],
@@ -560,10 +565,15 @@ export const saveOnboardingStep = asyncHandler(async (req, res) => {
         fashion: Array.isArray(payload.fashion) ? payload.fashion : [],
         activities: Array.isArray(payload.activities) ? payload.activities : [],
       };
+
       break;
+    }
+
+
+
 
     //bio
-    case 21: {
+    case 7: {
       const explicitAboutMe =
         typeof payload.aboutMe === "string" ? payload.aboutMe.trim() : payload.aboutMe;
 

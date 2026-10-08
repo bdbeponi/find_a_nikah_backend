@@ -116,9 +116,9 @@ const profileSchema = new Schema(
       type: String,
       enum: { values: RELIGIONS, message: "{VALUE} is not valid" }
     },
-    faith: { type: String, enum: FAITH },
+    faith: [{ type: String, enum: FAITH }],
 
-    religiousPractice: { type: String, enum: RELIGIOUS_PRACTICES },
+    religiousPractices: [{ type: String, enum: RELIGIOUS_PRACTICES }],
 
     // Step 18: Lifestyle
     lifestyle: {
