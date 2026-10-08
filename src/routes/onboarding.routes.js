@@ -3,6 +3,7 @@ import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import { verifyJWT } from "../middlewares/auth.middlewares.js";
 import {
   completeOnboarding,
+  getAiGeneratedBio,
   getOnboardingStatus,
   registerAccount,
   saveOnboardingStep,
@@ -46,6 +47,10 @@ onboardingRouter.route("/account").post(ipLimiter, registerAccount);
 onboardingRouter.use(verifyJWT);
 
 onboardingRouter.route("/status").get(getOnboardingStatus);
+
+// AI Bio generation routes
+onboardingRouter.route("/generate-bio").get(getAiGeneratedBio).post(getAiGeneratedBio);
+onboardingRouter.route("/ai-bio").get(getAiGeneratedBio).post(getAiGeneratedBio);
 
 onboardingRouter.route("/step").patch(
   upload.array("images", 20),

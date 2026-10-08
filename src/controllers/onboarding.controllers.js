@@ -9,6 +9,7 @@ import { ProfilePhoto } from "../models/profilePhoto.model.js";
 import { ProfileVerification } from "../models/profileVerification.model.js";
 import { cookieOptions, issueTokens } from "../services/auth.service.js";
 import { deliverOtp, issueOtp, verifyOtp } from "../services/otp.service.js";
+import { generateAiBioForUser } from "../services/ai.service.js";
 import {
   ACCOUNT_STATUS,
   ACCOUNT_TYPES,
@@ -245,10 +246,24 @@ export const getOnboardingStatus = asyncHandler(async (req, res) => {
   );
 });
 
-/**
- * PATCH /api/v1/onboarding/step
- * Simple, unified onboarding step progress saver (Steps 4 to 27)
- */
+
+export const getAiGeneratedBio = asyncHandler(async (req, res) => {
+  const userId = req.user._id;
+  const tone = req.query.tone || req.body.tone || "balanced";
+  const keywords = req.query.keywords || req.body.keywords || "";
+
+  const result = await generateAiBioForUser(userId, { tone, keywords });
+
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      result,
+      "AI bio generated successfully"
+    )
+  );
+});
+
+
 export const saveOnboardingStep = asyncHandler(async (req, res) => {
   const userId = req.user._id;
 
@@ -284,6 +299,7 @@ export const saveOnboardingStep = asyncHandler(async (req, res) => {
 
   // Common profile fields accumulator
   const profileUpdates = { onboardingStep: nextStep };
+  let aiBioResult = null;
 
 
   // console.log("payload.profileFor", payload.profileFor)
@@ -546,9 +562,28 @@ export const saveOnboardingStep = asyncHandler(async (req, res) => {
       };
       break;
 
-    case 21:
-      profileUpdates.aboutMe = payload.aboutMe;
+    //bio
+    case 21: {
+      const explicitAboutMe =
+        typeof payload.aboutMe === "string" ? payload.aboutMe.trim() : payload.aboutMe;
+
+      // Check if user requested AI generation or provided no manual aboutMe with AI flag
+      if (
+        payload.generateAi ||
+        payload.useAi ||
+        payload.isAiGenerated ||
+        (!explicitAboutMe && payload.generateAi !== false && payload.aboutMe === undefined)
+      ) {
+        aiBioResult = await generateAiBioForUser(userId, {
+          tone: payload.tone,
+          keywords: payload.keywords,
+        });
+        profileUpdates.aboutMe = explicitAboutMe || aiBioResult.bio;
+      } else {
+        profileUpdates.aboutMe = explicitAboutMe;
+      }
       break;
+    }
 
     case 22: {
       const uploadedFiles =
@@ -649,7 +684,11 @@ export const saveOnboardingStep = asyncHandler(async (req, res) => {
   return res.status(200).json(
     new ApiResponse(
       200,
-      { step: nextStep, profile },
+      {
+        step: nextStep,
+        profile,
+        ...(aiBioResult ? { aiBio: aiBioResult } : {}),
+      },
       `Step ${stepNumber} saved successfully`
     )
   );
