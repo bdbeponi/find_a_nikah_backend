@@ -396,7 +396,7 @@ export const saveOnboardingStep = asyncHandler(async (req, res) => {
         dateOfBirth: dobDate,
         religion,
         languages,
-        motherTongue: languages[0] || "Bengali",
+        motherTongue: languages[0],
         onboardingStep: Math.max(profile?.onboardingStep || 1, nextStep),
       };
       if (faith) {
@@ -429,16 +429,19 @@ export const saveOnboardingStep = asyncHandler(async (req, res) => {
       profileUpdates.referralSource = referralSource;
 
 
-      // nationality
-      profileUpdates.nationality = payload.nationality;
+      // nationality array
+      const nationality = Array.isArray(payload.nationality) ? [payload.nationality] : [];
+      profileUpdates.nationality = nationality;
 
-      // grewupin
-      if (payload.grewUpIn) profileUpdates.grewUpIn = payload.grewUpIn;
+      // grewupin array
+      const grewUpIn = Array.isArray(payload.grewUpIn) ? [payload.grewUpIn] : [];
+      profileUpdates.grewUpIn = grewUpIn;
 
 
 
-      // ethnecity-
-      if (payload.ethnicity) profileUpdates.ethnicity = payload.ethnicity;
+      // ethnecity array
+      const ethnicity = Array.isArray(payload.ethnicity) ? [payload.ethnicity] : [];
+      profileUpdates.ethnicity = ethnicity;
 
 
       // heighthCm
