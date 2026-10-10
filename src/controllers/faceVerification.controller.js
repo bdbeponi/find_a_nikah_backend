@@ -85,7 +85,6 @@ export const verifyFace = asyncHandler(async (req, res) => {
         if (!profile?.images?.length) {
             throw new ApiError(400, "Upload at least one profile photo before verifying your face");
         }
-
         // 1. Every frame must show exactly one face, in the pose the server asked for
         const analyses = [];
         for (let i = 0; i < session.challenges.length; i++) {
