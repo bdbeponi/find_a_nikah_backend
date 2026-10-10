@@ -58,7 +58,7 @@ app.use(securityHeaders);
 // index.js runs, so anything captured up here would see an empty process.env
 // and quietly fall back to the default.
 const allowedOrigins = () =>
-  (process.env.CORS_ORIGIN || "http://localhost:3001")
+  (process.env.CORS_ORIGIN || "http://localhost:3002")
     .split(",")
     .map((origin) => origin.trim())
     .filter(Boolean);

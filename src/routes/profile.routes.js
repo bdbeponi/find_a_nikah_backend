@@ -25,6 +25,7 @@ import {
   submitVerification,
   getMyVerification,
 } from "../controllers/profile.controllers.js";
+import { startFaceSession, verifyFace } from "../controllers/faceVerification.controller.js";
 
 const router = Router();
 
@@ -55,5 +56,19 @@ router
   .route("/me/verification")
   .get(getMyVerification)
   .post(upload.single("document"), submitVerification);
+
+
+// router
+//   .route("/face-verification")
+//   .post(upload.single("photo"), verifyFace)
+
+router.post("/face-verification/start", verifyJWT, startFaceSession);
+router.post(
+  "/face-verification",
+  verifyJWT,
+  upload.fields([{ name: "step1", maxCount: 1 }, { name: "step2", maxCount: 1 }, { name: "step3", maxCount: 1 }]),
+  verifyFace
+);
+
 
 export default router;

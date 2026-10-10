@@ -313,16 +313,18 @@ export const saveOnboardingStep = asyncHandler(async (req, res) => {
       }
 
       let profileFor = payload.profileFor;
-      if (accountType) {
+
+
+
+      if (!profileFor) {
+        profileFor = undefined;
+      } else {
         if (!profileFor || !PROFILE_FOR.includes(profileFor)) {
           throw new ApiError(
             400,
             `profileFor is required for family accounts and must be one of: ${PROFILE_FOR.join(", ")}`
           );
         }
-      } else {
-        // Individual account does not use a family relationship
-        profileFor = undefined;
       }
 
       const gender = payload.gender;
@@ -429,19 +431,22 @@ export const saveOnboardingStep = asyncHandler(async (req, res) => {
       profileUpdates.referralSource = referralSource;
 
 
-      // nationality array
-      const nationality = Array.isArray(payload.nationality) ? [payload.nationality] : [];
-      profileUpdates.nationality = nationality;
 
-      // grewupin array
-      const grewUpIn = Array.isArray(payload.grewUpIn) ? [payload.grewUpIn] : [];
-      profileUpdates.grewUpIn = grewUpIn;
-
+      const ensureArray = (value) => {
+        if (!value) return [];
+        if (Array.isArray(value)) return value.flat(); // flattens in case of nested arrays
+        return [value];
+      };
 
 
-      // ethnecity array
-      const ethnicity = Array.isArray(payload.ethnicity) ? [payload.ethnicity] : [];
-      profileUpdates.ethnicity = ethnicity;
+
+      profileUpdates.nationality = ensureArray(payload.nationality);
+      profileUpdates.grewUpIn = ensureArray(payload.grewUpIn);
+      profileUpdates.ethnicity = ensureArray(payload.ethnicity);
+
+      console.log("nationality", payload.nationality);
+      console.log("grewUpIn", payload.grewUpIn);
+      console.log("ethnicity", payload.ethnicity);
 
 
       // heighthCm

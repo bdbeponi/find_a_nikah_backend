@@ -152,6 +152,12 @@ const profileSchema = new Schema(
     //step 23: images
     images: [{ type: String }],
 
+    faceVerification: {
+      distance: { type: Number },
+      isFaceVerified: { type: Boolean, default: false },
+      verifiedAt: { type: Date },
+    },
+
     // Step 26: Location & Radius
     city: { type: String, trim: true, index: true },
     country: { type: String, trim: true, default: "Bangladesh" },

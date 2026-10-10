@@ -124,6 +124,7 @@ export const VERIFICATION_STATUSES = ["pending", "approved", "rejected"];
 export const VERIFICATION_DOC_TYPES = [
   "nid",
   "passport",
+  "face",
   "birth_certificate",
   "driving_licence",
 ];
