@@ -595,7 +595,7 @@ export const saveOnboardingStep = asyncHandler(async (req, res) => {
       break;
     }
 
-    case 22: {
+    case 8: {
       const uploadedFiles =
         Array.isArray(req.files) && req.files.length > 0
           ? req.files
@@ -613,6 +613,7 @@ export const saveOnboardingStep = asyncHandler(async (req, res) => {
       }
       break;
     }
+
     //befor step all ok--
     case 23: {
       // Step 23: Send phone OTP
