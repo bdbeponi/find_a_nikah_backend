@@ -64,7 +64,7 @@ const register = asyncHandler(async (req, res) => {
 const login = asyncHandler(async (req, res) => {
   const { phone, email, password } = req.body;
 
-  if ((!phone) || typeof password !== "string" || !password) {
+  if (typeof password !== "string" || !password) {
     throw new ApiError(400, "Phone (or email) and password are required");
   }
 
@@ -98,6 +98,9 @@ const login = asyncHandler(async (req, res) => {
 /** POST /api/v1/auth/refresh - spends the presented token and returns a new pair. */
 const refresh = asyncHandler(async (req, res) => {
   const presented = req.cookies?.refreshToken || req.body?.refreshToken;
+
+  console.log("refressTo", presented)
+
   if (!presented) throw new ApiError(401, "Refresh token is required");
 
   const { accessToken, refreshToken } = await rotateTokens(
