@@ -434,7 +434,7 @@ export const saveOnboardingStep = asyncHandler(async (req, res) => {
 
       const ensureArray = (value) => {
         if (!value) return [];
-        if (Array.isArray(value)) return value.flat(); // flattens in case of nested arrays
+        if (Array.isArray(value)) return value.flat();
         return [value];
       };
 

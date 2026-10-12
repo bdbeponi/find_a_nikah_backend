@@ -1,11 +1,7 @@
 import mongoose, { Schema } from "mongoose";
 import {
   ACCOUNT_TYPES,
-  ALCOHOL_HABITS,
-  BORN_MUSLIM_STATUS,
-  CHILDREN_STATUS,
   GENDERS,
-  HALAL_FOOD_HABITS,
   HEIGHT_CM_MAX,
   HEIGHT_CM_MIN,
   KNOW_DURATIONS,
