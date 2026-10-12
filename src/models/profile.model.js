@@ -15,10 +15,7 @@ import {
   REFERRAL_SOURCES,
   RELIGIONS,
   RELIGIOUS_PRACTICES,
-  RELIGIOUSNESS,
-  RELOCATE_STATUS,
   FAITH,
-  SMOKING_HABITS,
 } from "../constants.js";
 
 /**
