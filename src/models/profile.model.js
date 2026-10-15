@@ -5,7 +5,6 @@ import {
   HEIGHT_CM_MAX,
   HEIGHT_CM_MIN,
   KNOW_DURATIONS,
-  LOCATION_RADIUS_OPTIONS,
   MARITAL_STATUSES,
   MARRIAGE_TIMELINES,
   ONBOARDING_INTENTS,
@@ -151,22 +150,17 @@ const profileSchema = new Schema(
       verifiedAt: { type: Date },
     },
 
-    // Step 26: Location & Radius
-    city: { type: String, trim: true, index: true },
+    // Location: coordinates object { longitude, latitude, distance } or country only
     country: { type: String, trim: true, default: "Bangladesh" },
-    locationRadius: {
-      type: String,
-      enum: LOCATION_RADIUS_OPTIONS,
-      default: "large",
-    },
     location: {
       type: {
         type: String,
         enum: ["Point"],
       },
       coordinates: {
-        type: [Number], // [longitude, latitude]
-        default: undefined,
+        longitude: { type: Number },
+        latitude: { type: Number },
+        distance: { type: Number },
       },
     },
 
@@ -228,7 +222,13 @@ profileSchema.set("toObject", { virtuals: true });
  * location with no coordinates is removed rather than saved.
  */
 profileSchema.pre("save", function (next) {
-  if (this.location && !this.location.coordinates?.length) {
+  if (
+    this.location &&
+    (!this.location.coordinates ||
+      (this.location.coordinates.longitude === undefined &&
+        this.location.coordinates.latitude === undefined &&
+        !Array.isArray(this.location.coordinates)))
+  ) {
     this.location = undefined;
   }
   next();

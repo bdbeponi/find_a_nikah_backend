@@ -59,8 +59,16 @@ function poseProblem(challenge, a) {
 export const verifyFace = asyncHandler(async (req, res) => {
     const userId = req.user._id;
     const uploaded = STEP_KEYS.map((k) => req.files?.[k]?.[0]);
-    const absPath = (f) => path.join(process.cwd(), "public/upload", f.filename);
+    const absPath = (f) => f.path || path.join(process.cwd(), "public/upload", f.filename);
     let keepFront = false;
+
+    console.log(">>> [verifyFace] Incoming request for userId:", userId);
+    console.log(">>> [verifyFace] sessionId:", req.body?.sessionId);
+    console.log(">>> [verifyFace] uploaded files:", {
+        step1: uploaded[0] ? { name: uploaded[0].originalname, mimetype: uploaded[0].mimetype, size: uploaded[0].size } : "MISSING",
+        step2: uploaded[1] ? { name: uploaded[1].originalname, mimetype: uploaded[1].mimetype, size: uploaded[1].size } : "MISSING",
+        step3: uploaded[2] ? { name: uploaded[2].originalname, mimetype: uploaded[2].mimetype, size: uploaded[2].size } : "MISSING",
+    });
 
     try {
         if (uploaded.some((f) => !f)) {
@@ -79,30 +87,63 @@ export const verifyFace = asyncHandler(async (req, res) => {
             { $set: { used: true } },
             { new: true }
         );
-        if (!session) throw new ApiError(400, "This check has expired or was already used. Start again.");
+        if (!session) {
+            throw new ApiError(
+                400,
+                "This check session has expired or was already used. Please call POST /api/v1/profile/face-verification/start to start a new check."
+            );
+        }
 
         const profile = await Profile.findOne({ userId });
         if (!profile?.images?.length) {
             throw new ApiError(400, "Upload at least one profile photo before verifying your face");
         }
+
         // 1. Every frame must show exactly one face, in the pose the server asked for
         const analyses = [];
         for (let i = 0; i < session.challenges.length; i++) {
             const challenge = session.challenges[i];
-            const a = await analyzeFace(absPath(uploaded[i]));
+            const file = uploaded[i];
             const label = `Step ${i + 1} (${challenge})`;
 
-            if (a.status === "no_face") throw new ApiError(422, `${label}: no face detected. Keep your face in the oval and in good light.`);
-            if (a.status === "multiple_faces") throw new ApiError(422, `${label}: more than one face in the frame.`);
+            let a;
+            try {
+                a = await analyzeFace(absPath(file));
+            } catch (err) {
+                console.error(`>>> [verifyFace] ${label} decode failed:`, err.message);
+                throw new ApiError(
+                    400,
+                    `${label}: Unsupported or corrupted image file (${file.originalname || `step${i + 1}`}). Please upload a valid JPG, PNG, or WebP photo.`
+                );
+            }
+
+            if (a.status === "no_face") {
+                throw new ApiError(422, `${label}: no face detected. Keep your face in the oval and in good light.`);
+            }
+            if (a.status === "multiple_faces") {
+                throw new ApiError(422, `${label}: more than one face in the frame.`);
+            }
 
             const problem = poseProblem(challenge, a);
-            if (problem) throw new ApiError(422, `${label}: ${problem}`);
+            if (problem) {
+                throw new ApiError(422, `${label}: ${problem}`);
+            }
 
             analyses.push({ challenge, ...a });
         }
 
         // 2. All three must be the same person, and the close-up must be the profile's owner
-        const profileDescriptor = await getFaceDescriptor(path.join(process.cwd(), profile.images[0]));
+        const profileImgPath = path.join(process.cwd(), profile.images[0].replace(/^[/\\]+/, ""));
+        let profileDescriptor;
+        try {
+            profileDescriptor = await getFaceDescriptor(profileImgPath);
+        } catch (err) {
+            console.error(">>> [verifyFace] Main profile photo decode failed:", err.message);
+            throw new ApiError(
+                422,
+                `Could not read your main profile photo (${profile.images[0]}). Please re-upload your profile photo in onboarding step 8.`
+            );
+        }
         if (!profileDescriptor) {
             throw new ApiError(422, "No face detected in your main profile photo. Please update it first.");
         }
@@ -121,7 +162,7 @@ export const verifyFace = asyncHandler(async (req, res) => {
                     documentUrl: `/public/upload/${uploaded[0].filename}`,
                     status: isMatch ? "approved" : "rejected",
                     rejectionReason: isMatch
-                        ? undefined
+                        ? null
                         : `Live check did not match profile photo (front ${distance.toFixed(3)}, sides ${sideDistances.map((d) => d.toFixed(3)).join("/")})`,
                     reviewedAt: new Date(),
                 },
@@ -132,6 +173,20 @@ export const verifyFace = asyncHandler(async (req, res) => {
         if (isMatch) {
             await User.findByIdAndUpdate(userId, { isVerified: true, verifiedAt: new Date() });
         }
+
+        await Profile.findOneAndUpdate(
+            { userId },
+            {
+                $set: {
+                    "faceVerification.isFaceVerified": isMatch,
+                    "faceVerification.distance": distance,
+                    "faceVerification.verifiedAt": new Date(),
+                },
+            }
+        );
+
+
+        console.log("req.files1234", req.files)
 
         return res.status(200).json(
             new ApiResponse(

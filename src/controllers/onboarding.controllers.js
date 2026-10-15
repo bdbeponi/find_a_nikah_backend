@@ -1,3 +1,5 @@
+import fs from "fs/promises";
+import path from "path";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/apiError.js";
 import { ApiResponse } from "../utils/apiResponse.js";
@@ -444,11 +446,6 @@ export const saveOnboardingStep = asyncHandler(async (req, res) => {
       profileUpdates.grewUpIn = ensureArray(payload.grewUpIn);
       profileUpdates.ethnicity = ensureArray(payload.ethnicity);
 
-      console.log("nationality", payload.nationality);
-      console.log("grewUpIn", payload.grewUpIn);
-      console.log("ethnicity", payload.ethnicity);
-
-
       // heighthCm
       const h = parseHeightCm(payload.heightCm);
       if (h === null) {
@@ -604,80 +601,90 @@ export const saveOnboardingStep = asyncHandler(async (req, res) => {
     }
 
     case 8: {
-      const uploadedFiles =
-        Array.isArray(req.files) && req.files.length > 0
-          ? req.files
-          : req.file
-            ? [req.file]
-            : [];
+      const uploadedFiles = Array.isArray(req.files) ? req.files : [];
 
       if (uploadedFiles.length > 0) {
-        const filePaths = uploadedFiles.map((file) => `/public/upload/${file.filename}`);
-        profileUpdates.images = filePaths;
-      } else if (payload.images) {
-        profileUpdates.images = Array.isArray(payload.images)
-          ? payload.images
-          : [payload.images];
+        profileUpdates.images = uploadedFiles.map(
+          (file) => `/public/upload/${file.filename}`
+        );
       }
+
       break;
     }
 
-    //befor step all ok--
-    case 23: {
-      // Step 23: Send phone OTP
+    // Step 9: Send phone / WhatsApp OTP (demo mode returns code in response)
+    case 9: {
+      // If code is provided directly in step 9, verify it immediately
+      if (payload.code) {
+        const phone = payload.phone || user.phone;
+        if (!phone) throw new ApiError(400, "Phone number is required");
+        await verifyOtp(phone, "phone_verification", payload.code);
+        user.isPhoneVerified = true;
+        user.onboardingStep = Math.max(user.onboardingStep || 1, nextStep);
+        await user.save({ validateBeforeSave: false });
+        break;
+      }
+
+      // Generate and return code in response (demo mode)
       const phone = requireString(payload.phone, "Phone");
       const code = await issueOtp(phone, "phone_verification");
       const devCode = await deliverOtp(phone, code, "phone_verification");
       user.phone = phone;
       await user.save({ validateBeforeSave: false });
       return res.status(200).json(
-        new ApiResponse(200, { devCode, phone }, "SMS verification code sent")
+        new ApiResponse(
+          200,
+          {
+            devCode: devCode || code,
+            code,
+            phone,
+            currentStep: 9,
+            nextStep: 10,
+          },
+          "WhatsApp verification code sent"
+        )
       );
     }
 
-    case 24: {
-      // Step 24: Verify phone code
+    // Step 10: Verify phone / WhatsApp OTP code
+    case 10: {
       const code = requireString(payload.code, "Verification code");
-      if (!user.phone) throw new ApiError(400, "Phone number has not been set");
-      await verifyOtp(user.phone, "phone_verification", code);
+      const phone = payload.phone || user.phone;
+      if (!phone) throw new ApiError(400, "Phone number has not been set");
+      await verifyOtp(phone, "phone_verification", code);
       user.isPhoneVerified = true;
       user.onboardingStep = Math.max(user.onboardingStep || 1, nextStep);
       await user.save({ validateBeforeSave: false });
       break;
     }
 
-    case 26: {
-      // Step 26: Location selection
-      profileUpdates.city = payload.city;
-      profileUpdates.country = payload.country || "Bangladesh";
-      profileUpdates.locationRadius = payload.locationRadius || "large";
-      if (payload.longitude !== undefined && payload.latitude !== undefined) {
-        const lng = Number(payload.longitude);
-        const lat = Number(payload.latitude);
-        if (Number.isFinite(lng) && Number.isFinite(lat)) {
-          profileUpdates.location = { type: "Point", coordinates: [lng, lat] };
+    case 11: {
+      // Step 11: Location selection (country only or coordinates object { longitude, latitude, distance })
+      if (payload.country) {
+        profileUpdates.country = payload.country;
+      }
+
+      const rawLat = payload.latitude;
+
+      const rawLng = payload.longi;
+
+      const rawDist = payload.distance;
+
+      if (rawLat !== undefined && rawLng !== undefined) {
+        const lat = Number(rawLat);
+        const lng = Number(rawLng);
+        const dist = rawDist !== undefined ? Number(rawDist) : undefined;
+        if (Number.isFinite(lat) && Number.isFinite(lng)) {
+          profileUpdates.location = {
+            type: "Point",
+            coordinates: {
+              longitude: lng,
+              latitude: lat,
+              ...(Number.isFinite(dist) ? { distance: dist } : {}),
+            },
+          };
         }
       }
-      break;
-    }
-
-    case 27: {
-      // Step 27: Partner preference
-      await PartnerPreference.findOneAndUpdate(
-        { userId },
-        {
-          $set: {
-            ageRange: payload.ageRange || { min: MIN_AGE, max: MAX_AGE },
-            heightRange: payload.heightRange,
-            preferredReligions: payload.preferredReligions,
-            preferredSects: payload.preferredSects,
-            maritalStatuses: payload.maritalStatuses,
-            preferredCities: payload.preferredCities,
-            verifiedOnly: Boolean(payload.verifiedOnly),
-          },
-        },
-        { upsert: true, new: true }
-      );
       break;
     }
 
@@ -762,3 +769,144 @@ export const completeOnboarding = asyncHandler(async (req, res) => {
     )
   );
 });
+
+/**
+ * DELETE /api/v1/onboarding/images
+ * DELETE /api/v1/onboarding/images/:filename
+ * Delete an onboarding image one by one from profile.images and disk
+ */
+export const deleteOnboardingImage = asyncHandler(async (req, res) => {
+  const userId = req.user._id;
+
+  const target =
+    req.body?.imageUrl ||
+    req.body?.image ||
+    req.body?.filename ||
+    req.query?.imageUrl ||
+    req.query?.filename ||
+    req.params?.filename;
+
+  const targetIndex =
+    req.body?.index !== undefined
+      ? Number(req.body.index)
+      : req.query?.index !== undefined
+        ? Number(req.query.index)
+        : null;
+
+  if (!target && targetIndex === null) {
+    throw new ApiError(400, "Please provide an imageUrl, filename, or index to delete");
+  }
+
+  const profile = await Profile.findOne({ userId });
+  if (!profile) {
+    throw new ApiError(404, "Profile not found");
+  }
+
+  const images = Array.isArray(profile.images) ? [...profile.images] : [];
+  if (images.length === 0) {
+    throw new ApiError(400, "No images found in your profile to delete");
+  }
+
+  let indexToDelete = -1;
+
+  if (targetIndex !== null && Number.isInteger(targetIndex) && targetIndex >= 0 && targetIndex < images.length) {
+    indexToDelete = targetIndex;
+  } else if (target) {
+    const cleanTarget = String(target).trim();
+    const targetFilename = path.basename(cleanTarget);
+
+    indexToDelete = images.findIndex((img) => {
+      if (typeof img !== "string") return false;
+      return (
+        img === cleanTarget ||
+        img.endsWith(cleanTarget) ||
+        path.basename(img) === targetFilename
+      );
+    });
+  }
+
+  if (indexToDelete === -1) {
+    throw new ApiError(404, "Image not found in your profile");
+  }
+
+  const [deletedImageUrl] = images.splice(indexToDelete, 1);
+  profile.images = images;
+  await profile.save({ validateBeforeSave: false });
+
+  // Delete from disk if stored locally
+  if (typeof deletedImageUrl === "string" && deletedImageUrl.includes("/public/upload/")) {
+    const filename = path.basename(deletedImageUrl);
+    const diskPath = path.join(process.cwd(), "public", "upload", filename);
+    await fs.unlink(diskPath).catch(() => { });
+  }
+
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      {
+        images: profile.images,
+        deletedImage: deletedImageUrl,
+      },
+      "Image deleted successfully"
+    )
+  );
+});
+
+/**
+ * POST /api/v1/onboarding/phone/send-code
+ * Send phone / WhatsApp OTP code
+ */
+export const sendPhoneOtp = asyncHandler(async (req, res) => {
+  const phone = requireString(req.body?.phone || req.user?.phone, "Phone");
+  const code = await issueOtp(phone, "phone_verification");
+  const devCode = await deliverOtp(phone, code, "phone_verification");
+
+  if (req.user) {
+    req.user.phone = phone;
+    await req.user.save({ validateBeforeSave: false });
+  }
+
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      {
+        devCode: devCode || code,
+        code, // demo mode code returned in response
+        phone,
+      },
+      "WhatsApp verification code sent (demo mode)"
+    )
+  );
+});
+
+/**
+ * POST /api/v1/onboarding/phone/verify-code
+ * Verify phone / WhatsApp OTP code
+ */
+export const verifyPhoneOtp = asyncHandler(async (req, res) => {
+  const phone = requireString(req.body?.phone || req.user?.phone, "Phone");
+  const code = requireString(req.body?.code, "Verification code");
+
+  await verifyOtp(phone, "phone_verification", code);
+
+  if (req.user) {
+    req.user.phone = phone;
+    req.user.isPhoneVerified = true;
+    req.user.onboardingStep = Math.max(req.user.onboardingStep || 1, 10);
+    await req.user.save({ validateBeforeSave: false });
+  }
+
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      {
+        phone,
+        isPhoneVerified: true,
+        verified: true,
+      },
+      "Phone number verified successfully"
+    )
+  );
+});
+
+

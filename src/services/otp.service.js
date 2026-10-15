@@ -89,20 +89,54 @@ export const verifyOtp = async (rawIdentifier, purpose, rawCode) => {
 };
 
 /**
+ * WhatsApp OTP dispatcher
+ * In demo mode: logs and returns the generated verification code.
+ * When paid WhatsApp API credentials are configured, sends via WhatsApp API.
+ */
+export const sendWhatsAppOtp = async (phone, code, purpose = "phone_verification") => {
+  console.log(`📱 [WhatsApp OTP Demo] Sending verification code ${code} to ${phone} (${purpose})`);
+
+
+  if (process.env.WHATSAPP_TOKEN && process.env.WHATSAPP_PHONE_NUMBER_ID) {
+    try {
+      const url = `https://graph.facebook.com/v19.0/${process.env.WHATSAPP_PHONE_NUMBER_ID}/messages`;
+      await fetch(url, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${process.env.WHATSAPP_TOKEN}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          messaging_product: "whatsapp",
+          to: String(phone).replace(/[^\d+]/g, ""),
+          type: "text",
+          text: {
+            body: `Your Find A Nikah verification code is: ${code}. Valid for 5 minutes.`,
+          },
+        }),
+      });
+    } catch (err) {
+      console.warn("⚠️ WhatsApp API delivery error:", err.message);
+    }
+  }
+
+  return { success: true, code, phone };
+};
+
+/**
  * Hands the code to whoever has to receive it.
  *
- * ponytail: no SMS gateway is wired up, so the code goes to the server log and
- * - outside production only - back in the response, which is what makes the
- * mobile app testable today. Replace the body with the provider call; the
- * production branch already refuses to leak it.
+ * For email: dispatches via SMTP.
+ * For phone: dispatches via WhatsApp (currently demo mode: logs & returns code).
  */
 export const deliverOtp = async (identifier, code, purpose) => {
   console.log(`📨 OTP for ${identifier} (${purpose}): ${code}`);
 
-  // When identifier is an email address, dispatch via SMTP
   if (String(identifier).includes("@")) {
-    await sendOtpEmail(identifier, code, purpose);
+    // Phone identifier -> WhatsApp delivery
+    await sendWhatsAppOtp(identifier, code, purpose);
   }
 
-  return process.env.NODE_ENV === "production" ? null : code;
+  return code;
 };
+

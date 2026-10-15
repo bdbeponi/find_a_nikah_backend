@@ -244,4 +244,3 @@ export const RELOCATE_STATUS = [
   "maybe",
 ];
 
-export const LOCATION_RADIUS_OPTIONS = ["small", "large"];

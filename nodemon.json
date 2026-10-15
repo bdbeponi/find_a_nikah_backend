@@ -1,0 +1,4 @@
+{
+  "watch": ["src"],
+  "ignore": ["public/*", "models/*", "*.test.js", "test_*"]
+}

@@ -5,7 +5,11 @@ import path from "path";
 const { Canvas, Image, ImageData } = canvas;
 faceapi.env.monkeyPatch({ Canvas, Image, ImageData });
 
-const MODEL_PATH = path.join(process.cwd(), "models");
+import fs from "fs";
+
+const LOCAL_MODEL_PATH = path.join(process.cwd(), "models");
+const PKG_MODEL_PATH = path.join(process.cwd(), "node_modules/@vladmandic/face-api/model");
+const MODEL_PATH = fs.existsSync(LOCAL_MODEL_PATH) ? LOCAL_MODEL_PATH : PKG_MODEL_PATH;
 let modelsLoaded = false;
 
 export async function loadFaceModels() {
@@ -16,10 +20,38 @@ export async function loadFaceModels() {
     modelsLoaded = true;
 }
 
+import sharp from "sharp";
+
+async function safeLoadImage(imagePath) {
+    let buf;
+    try {
+        buf = await fs.promises.readFile(imagePath);
+    } catch (readErr) {
+        throw new Error(`File not found or unreadable: ${readErr.message}`);
+    }
+
+    if (!buf || buf.length === 0) {
+        throw new Error("Uploaded file is empty (0 bytes).");
+    }
+
+    // Try sharp first: auto-orient EXIF camera rotation and convert to standard PNG buffer
+    try {
+        const pngBuf = await sharp(buf).rotate().png().toBuffer();
+        return await canvas.loadImage(pngBuf);
+    } catch {
+        // Fallback directly to canvas.loadImage
+        try {
+            return await canvas.loadImage(buf);
+        } catch {
+            throw new Error("Input file contains unsupported image format. Please upload JPG, PNG, or WebP.");
+        }
+    }
+}
+
 /** Descriptor only. Used for the stored profile photo. */
 export async function getFaceDescriptor(imagePath) {
     await loadFaceModels();
-    const img = await canvas.loadImage(imagePath);
+    const img = await safeLoadImage(imagePath);
     const detection = await faceapi
         .detectSingleFace(img)
         .withFaceLandmarks()
@@ -40,7 +72,7 @@ export async function getFaceDescriptor(imagePath) {
  */
 export async function analyzeFace(imagePath) {
     await loadFaceModels();
-    const img = await canvas.loadImage(imagePath);
+    const img = await safeLoadImage(imagePath);
     const found = await faceapi
         .detectAllFaces(img)
         .withFaceLandmarks()

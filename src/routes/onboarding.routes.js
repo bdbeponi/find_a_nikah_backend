@@ -3,12 +3,15 @@ import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import { verifyJWT } from "../middlewares/auth.middlewares.js";
 import {
   completeOnboarding,
+  deleteOnboardingImage,
   getAiGeneratedBio,
   getOnboardingStatus,
   registerAccount,
   saveOnboardingStep,
   sendEmailOtp,
+  sendPhoneOtp,
   verifyEmailOtp,
+  verifyPhoneOtp,
 } from "../controllers/onboarding.controllers.js";
 import { upload } from "../middlewares/multer.middlewares.js";
 
@@ -56,6 +59,14 @@ onboardingRouter.route("/step").patch(
   upload.array("images", 20),
   saveOnboardingStep
 );
+
+// Phone / WhatsApp OTP routes
+onboardingRouter.route("/phone/send-code").post(otpLimiter, sendPhoneOtp);
+onboardingRouter.route("/phone/verify-code").post(verifyPhoneOtp);
+
+// Delete onboarding profile image one by one
+onboardingRouter.route("/images").delete(deleteOnboardingImage);
+onboardingRouter.route("/images/:filename").delete(deleteOnboardingImage);
 
 onboardingRouter.route("/complete").post(completeOnboarding);
 
