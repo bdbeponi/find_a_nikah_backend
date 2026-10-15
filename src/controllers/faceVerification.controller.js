@@ -186,7 +186,7 @@ export const verifyFace = asyncHandler(async (req, res) => {
         );
 
 
-        console.log("req.files1234", req.files)
+        // console.log("req.files1234", req.files)
 
         return res.status(200).json(
             new ApiResponse(
