@@ -14,6 +14,10 @@ import {
   getJustJoined,
   getNearYou,
 } from "../controllers/discovery.controllers.js";
+import {
+  getSwipeCards,
+  handleSwipeAction,
+} from "../controllers/swipeDeck.controller.js";
 
 const router = Router();
 
@@ -21,6 +25,7 @@ const router = Router();
 // gender, their blocks, their matches - and there is no sensible answer for a
 // caller with none of those.
 router.use(verifyJWT);
+
 
 router.route("/search").get(searchProfiles);
 router.route("/recommendations").get(getRecommendations);
@@ -37,6 +42,11 @@ router.route("/feed/near-you").get(getNearYou);
 router.route("/me/viewers").get(getMyViewers);
 router.route("/me/viewed").get(getMyViewed).delete(clearMyViewed);
 
+// Tinder-style swipe cards and actions (MUST be before /:userId)
+router.route("/cards").get(getSwipeCards);
+router.route("/swipe").post(handleSwipeAction);
+
+// Parameterized route MUST stay after all static routes
 router.route("/:userId").get(getPublicProfile);
 
 export default router;

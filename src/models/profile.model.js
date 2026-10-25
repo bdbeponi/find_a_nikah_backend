@@ -146,7 +146,7 @@ const profileSchema = new Schema(
 
     faceVerification: {
       distance: { type: Number },
-      isFaceVerified: { type: Boolean, default: false },
+      isFaceVerified: { type: Boolean, default: true },
       verifiedAt: { type: Date },
     },
 

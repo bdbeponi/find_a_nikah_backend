@@ -62,13 +62,13 @@ export const verifyFace = asyncHandler(async (req, res) => {
     const absPath = (f) => f.path || path.join(process.cwd(), "public/upload", f.filename);
     let keepFront = false;
 
-    console.log(">>> [verifyFace] Incoming request for userId:", userId);
-    console.log(">>> [verifyFace] sessionId:", req.body?.sessionId);
-    console.log(">>> [verifyFace] uploaded files:", {
-        step1: uploaded[0] ? { name: uploaded[0].originalname, mimetype: uploaded[0].mimetype, size: uploaded[0].size } : "MISSING",
-        step2: uploaded[1] ? { name: uploaded[1].originalname, mimetype: uploaded[1].mimetype, size: uploaded[1].size } : "MISSING",
-        step3: uploaded[2] ? { name: uploaded[2].originalname, mimetype: uploaded[2].mimetype, size: uploaded[2].size } : "MISSING",
-    });
+    // console.log(">>> [verifyFace] Incoming request for userId:", userId);
+    // console.log(">>> [verifyFace] sessionId:", req.body?.sessionId);
+    // console.log(">>> [verifyFace] uploaded files:", {
+    //     step1: uploaded[0] ? { name: uploaded[0].originalname, mimetype: uploaded[0].mimetype, size: uploaded[0].size } : "MISSING",
+    //     step2: uploaded[1] ? { name: uploaded[1].originalname, mimetype: uploaded[1].mimetype, size: uploaded[1].size } : "MISSING",
+    //     step3: uploaded[2] ? { name: uploaded[2].originalname, mimetype: uploaded[2].mimetype, size: uploaded[2].size } : "MISSING",
+    // });
 
     try {
         if (uploaded.some((f) => !f)) {

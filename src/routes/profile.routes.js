@@ -70,5 +70,4 @@ router.post(
   verifyFace
 );
 
-
 export default router;
